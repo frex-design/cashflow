@@ -965,7 +965,6 @@ async function sbFetch(path, method = 'GET', body = null) {
   if (method === 'DELETE' || method === 'PATCH') return true;
   try { return await res.json(); } catch { return true; }
 }
-
 function entryToRow(e) {
   return {
     id: e.id, date: e.date, account: e.account, type: e.type, status: e.status,
@@ -984,7 +983,6 @@ function rowToEntry(r) {
     sort_order: r.sort_order != null ? r.sort_order : r.id,
   };
 }
-
 function showSyncStatus(msg) {
   let el = document.getElementById('syncStatus');
   if (!el) {
@@ -998,7 +996,6 @@ function hideSyncStatus() {
   const el = document.getElementById('syncStatus');
   if (el) el.style.display = 'none';
 }
-
 function saveAdjustments() {
   localStorage.setItem('fd_balance_adj', JSON.stringify(balanceAdjustments));
   const rows = Object.entries(balanceAdjustments).map(([account_id, v]) => ({ account_id, date: v.date, actual: v.actual }));
@@ -1009,7 +1006,7 @@ function loadAdjustments() {
   if (d) balanceAdjustments = JSON.parse(d);
 }
 
-// Transfer presets
+// Transfer presets: [fromId, toId, label]
 const TRANSFER_PRESETS = [
   { from: 'akita',   to: 'gmo',         label: '秋田銀行 → GMOあおぞら' },
   { from: 'akita',   to: 'paild',       label: '秋田銀行 → Paild口座' },
@@ -1027,8 +1024,8 @@ let entries = [];
 let charts = {};
 let chartPeriod = 30;
 let editingId = null;
-let chartMonth = null;
-let miniMonth = null;
+let chartMonth = null; // 'YYYY-MM' for chart tab
+let miniMonth = null;  // 'YYYY-MM' for mini chart
 
 // ===== STORAGE =====
 async function save() {
@@ -1039,17 +1036,6 @@ async function save() {
     await sbFetch('/rest/v1/entries?on_conflict=id', 'POST', rows.slice(i, i + 100));
   }
 }
-
-// sort_orderのみ更新（ドラッグ専用・renderAllを呼ばない）
-async function saveSortOrder(updates) {
-  for (const u of updates) {
-    const en = entries.find(e => e.id === u.id);
-    if (en) en.sort_order = u.sort_order;
-    await sbFetch(`/rest/v1/entries?id=eq.${u.id}`, 'PATCH', { sort_order: u.sort_order });
-  }
-  localStorage.setItem('fd_entries_v3', JSON.stringify(entries));
-}
-
 async function load() {
   loadAdjustments();
   const local = localStorage.getItem('fd_entries_v3');
@@ -1131,6 +1117,7 @@ async function init() {
 
   renderAll();
   loadSalesTarget();
+  startRealtimeSync();
 }
 
 // ===== FORM MODE =====
@@ -1288,19 +1275,24 @@ function renderSidebar() {
     const bal = getBalanceAt(a.id, today);
     const prevBal = getBalanceAt(a.id, yesterday);
     const diff = bal - prevBal;
-    const warn = bal < threshold;
+    // しきい値警告は秋田銀行のみ
+    const warn = a.id === 'akita' && bal < threshold && bal >= 0;
+    const isMinus = bal < 0;
     const diffHtml = diff !== 0
       ? `<span style="font-size:11px; color:${diff>0?'var(--green)':'var(--red)'}; font-family:var(--mono);">${diff>0?'+':''}${Math.round(diff).toLocaleString('ja-JP')}</span>`
       : '';
     total += bal;
+    let cardStyle = '';
+    if (isMinus) cardStyle = 'border-color:rgba(220,38,38,0.5);background:rgba(220,38,38,0.03);';
+    else if (warn) cardStyle = 'border-color:rgba(217,119,6,0.5);';
     return `
-      <div class="account-card" style="${warn ? 'border-color:rgba(217,119,6,0.5);' : ''}">
+      <div class="account-card" style="${cardStyle}">
         <div class="account-card-top">
           <span class="account-name">${a.name}</span>
           <span class="account-dot" style="background:${a.color}"></span>
         </div>
         <div style="display:flex; justify-content:space-between; align-items:baseline;">
-          <div class="account-balance">${fmt(bal)}</div>
+          <div class="account-balance" style="${isMinus?'color:var(--red);':''}${warn?'color:var(--yellow);':''}">${fmt(bal)}</div>
           ${diffHtml}
         </div>
       </div>`;
@@ -1309,12 +1301,30 @@ function renderSidebar() {
   document.getElementById('accountCards').innerHTML = html;
   document.getElementById('totalBalance').textContent = fmt(total);
 
-  // Timestamp
+  // Timestamp（現在時刻）
   const ts = document.getElementById('sidebarTimestamp');
   if (ts) {
     const now = new Date();
     ts.textContent = `本日 ${now.getHours()}:${String(now.getMinutes()).padStart(2,'0')} 現在`;
   }
+}
+
+// ===== リアルタイム更新タイマー =====
+// 30秒ごとにSupabaseから最新データを取得してサイドバーを更新
+function startRealtimeSync() {
+  setInterval(async () => {
+    const data = await sbFetch('/rest/v1/entries?select=*&order=date.asc,sort_order.asc');
+    if (data && Array.isArray(data)) {
+      entries = data.map(rowToEntry);
+      localStorage.setItem('fd_entries_v3', JSON.stringify(entries));
+      renderSidebar();
+      renderSalesTicker();
+      updateAlerts();
+      // 現在表示中のタブも更新
+      if (document.getElementById('panel-daily').classList.contains('active')) renderDailyTable();
+      if (document.getElementById('panel-chart').classList.contains('active')) renderCharts();
+    }
+  }, 30000); // 30秒
 }
 
 // ===== ALERTS =====
@@ -1547,7 +1557,7 @@ function renderDailyTable() {
     }
     const bal = (!isCard && e.status === 'confirmed') ? runBal[e.account] : null;
     const isMinus    = bal !== null && bal < 0;
-    const isWarn     = bal !== null && !isMinus && bal < threshold;
+    const isWarn     = bal !== null && !isMinus && e.account === 'akita' && bal < threshold;
     const rowAlert   = isMinus || isWarn;
 
     let badgeHtml;
@@ -1634,37 +1644,31 @@ function initDragDrop() {
   if (!tbody) return;
 
   tbody.querySelectorAll('tr[data-id]').forEach(row => {
-
     row.addEventListener('dragstart', e => {
       dragSrcId = parseInt(row.dataset.id);
       e.dataTransfer.effectAllowed = 'move';
       e.dataTransfer.setData('text/plain', String(dragSrcId));
       setTimeout(() => row.classList.add('dragging'), 0);
     });
-
     row.addEventListener('dragend', () => {
       row.classList.remove('dragging');
       tbody.querySelectorAll('tr').forEach(r => r.classList.remove('drag-over'));
     });
-
     row.addEventListener('dragover', e => {
       e.preventDefault();
       if (dragSrcId === null || dragSrcId === parseInt(row.dataset.id)) return;
       const srcEntry = entries.find(en => en.id === dragSrcId);
       const tgtEntry = entries.find(en => en.id === parseInt(row.dataset.id));
       if (!srcEntry || !tgtEntry || srcEntry.date !== tgtEntry.date) {
-        e.dataTransfer.dropEffect = 'none';
-        return;
+        e.dataTransfer.dropEffect = 'none'; return;
       }
       e.dataTransfer.dropEffect = 'move';
       tbody.querySelectorAll('tr').forEach(r => r.classList.remove('drag-over'));
       row.classList.add('drag-over');
     });
-
     row.addEventListener('dragleave', () => {
       row.classList.remove('drag-over');
     });
-
     row.addEventListener('drop', async e => {
       e.preventDefault();
       e.stopPropagation();
@@ -1677,7 +1681,7 @@ function initDragDrop() {
       const tgtEntry = entries.find(en => en.id === targetId);
       if (!srcEntry || !tgtEntry || srcEntry.date !== tgtEntry.date) { dragSrcId = null; return; }
 
-      // 同日付の行を現在表示順で取得
+      // 同日付の行を現在のsort_order順で取得
       const sameDateEntries = entries
         .filter(en => en.date === srcEntry.date)
         .sort((a,b) => (a.sort_order!=null?a.sort_order:a.id) - (b.sort_order!=null?b.sort_order:b.id));
@@ -1687,22 +1691,19 @@ function initDragDrop() {
       const tgtPos = orderedIds.indexOf(targetId);
       if (srcPos === -1 || tgtPos === -1) { dragSrcId = null; return; }
 
-      // srcをtgtの位置に移動
       orderedIds.splice(srcPos, 1);
       orderedIds.splice(tgtPos, 0, dragSrcId);
 
-      // sort_orderを10刻みで割り当て（将来の挿入に備えて余裕を持たせる）
+      // sort_orderを10刻みで更新
       const updates = orderedIds.map((id, idx) => ({ id, sort_order: (idx + 1) * 10 }));
 
-      // ローカルのentriesを即座に更新してから再描画（Supabase完了を待たない）
+      // ローカルを先に更新して即座に再描画
       updates.forEach(u => {
         const en = entries.find(en => en.id === u.id);
         if (en) en.sort_order = u.sort_order;
       });
       localStorage.setItem('fd_entries_v3', JSON.stringify(entries));
       dragSrcId = null;
-
-      // 先に再描画（ユーザーへの即時フィードバック）
       renderDailyTable();
       showToast('並び順を更新しました');
 
