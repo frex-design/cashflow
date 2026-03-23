@@ -203,11 +203,10 @@
   ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
 
   /* ===== DRAG AND DROP ===== */
-  .drag-handle { cursor: grab; color: var(--border2); font-size: 16px; padding: 0 4px; user-select: none; -webkit-user-select: none; transition: color 0.15s; display: inline-block; }
+  .drag-handle { cursor: grab; color: var(--border2); font-size: 16px; padding: 0 4px; user-select: none; -webkit-user-select: none; }
   .drag-handle:hover { color: var(--accent); }
-  tr.dragging td { opacity: 0.35; }
-  tr.drag-over-top td { border-top: 2px solid var(--accent) !important; }
-  tr.drag-over-bottom td { border-bottom: 2px solid var(--accent) !important; }
+  tr.dragging { opacity: 0.3; }
+  tr.drag-over td { border-top: 2px solid var(--accent) !important; }
 
   /* ===== MISC ===== */
   .empty-state { text-align: center; padding: 40px; color: var(--text3); font-size: 13px; }
@@ -944,7 +943,6 @@ const ACCOUNTS = [
 const INIT_DATE = '2026-03-31';
 
 // 残高調整: { accountId: { date: 'YYYY-MM-DD', actual: number } }
-// 指定日の実残高を基準として上書きする
 let balanceAdjustments = {};
 
 // ===== SUPABASE CONFIG =====
@@ -967,46 +965,30 @@ async function sbFetch(path, method = 'GET', body = null) {
   if (method === 'DELETE' || method === 'PATCH') return true;
   try { return await res.json(); } catch { return true; }
 }
-
 function entryToRow(e) {
-  return {
-    id: e.id, date: e.date, account: e.account, type: e.type,
-    status: e.status, amount: e.amount, partner: e.partner || null,
-    description: e.desc || null, category: e.category || null,
-    pay_method: e.payMethod || null, is_card: e.isCard || false,
-    is_transfer: e.isTransfer || false,
-  };
+  return { id: e.id, date: e.date, account: e.account, type: e.type, status: e.status,
+    amount: e.amount, partner: e.partner||null, description: e.desc||null,
+    category: e.category||null, pay_method: e.payMethod||null,
+    is_card: e.isCard||false, is_transfer: e.isTransfer||false };
 }
 function rowToEntry(r) {
-  return {
-    id: r.id, date: r.date, account: r.account, type: r.type,
-    status: r.status, amount: Number(r.amount), partner: r.partner || '',
-    desc: r.description || '', category: r.category || '',
-    payMethod: r.pay_method || '', isCard: r.is_card || false,
-    isTransfer: r.is_transfer || false,
-  };
+  return { id: r.id, date: r.date, account: r.account, type: r.type, status: r.status,
+    amount: Number(r.amount), partner: r.partner||'', desc: r.description||'',
+    category: r.category||'', payMethod: r.pay_method||'',
+    isCard: r.is_card||false, isTransfer: r.is_transfer||false };
 }
-
 function showSyncStatus(msg) {
   let el = document.getElementById('syncStatus');
-  if (!el) {
-    el = document.createElement('div');
-    el.id = 'syncStatus';
+  if (!el) { el = document.createElement('div'); el.id = 'syncStatus';
     el.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1a2236;color:#fff;padding:8px 18px;border-radius:8px;font-size:12px;z-index:9999;';
-    document.body.appendChild(el);
-  }
+    document.body.appendChild(el); }
   el.textContent = msg; el.style.display = 'block';
 }
-function hideSyncStatus() {
-  const el = document.getElementById('syncStatus');
-  if (el) el.style.display = 'none';
-}
+function hideSyncStatus() { const el = document.getElementById('syncStatus'); if (el) el.style.display = 'none'; }
 
 function saveAdjustments() {
   localStorage.setItem('fd_balance_adj', JSON.stringify(balanceAdjustments));
-  const rows = Object.entries(balanceAdjustments).map(([account_id, v]) => ({
-    account_id, date: v.date, actual: v.actual
-  }));
+  const rows = Object.entries(balanceAdjustments).map(([account_id, v]) => ({ account_id, date: v.date, actual: v.actual }));
   if (rows.length > 0) sbFetch('/rest/v1/balance_adjustments?on_conflict=account_id', 'POST', rows);
 }
 function loadAdjustments() {
@@ -1014,7 +996,7 @@ function loadAdjustments() {
   if (d) balanceAdjustments = JSON.parse(d);
 }
 
-// Transfer presets: [fromId, toId, label]
+// Transfer presets
 const TRANSFER_PRESETS = [
   { from: 'akita',   to: 'gmo',         label: '秋田銀行 → GMOあおぞら' },
   { from: 'akita',   to: 'paild',       label: '秋田銀行 → Paild口座' },
@@ -1032,8 +1014,8 @@ let entries = [];
 let charts = {};
 let chartPeriod = 30;
 let editingId = null;
-let chartMonth = null; // 'YYYY-MM' for chart tab
-let miniMonth = null;  // 'YYYY-MM' for mini chart
+let chartMonth = null;
+let miniMonth = null;
 
 // ===== STORAGE =====
 async function save() {
@@ -1057,9 +1039,7 @@ async function load() {
   const adjData = await sbFetch('/rest/v1/balance_adjustments?select=*');
   if (adjData && Array.isArray(adjData)) {
     balanceAdjustments = {};
-    adjData.forEach(r => {
-      balanceAdjustments[r.account_id] = { date: r.date, actual: Number(r.actual) };
-    });
+    adjData.forEach(r => { balanceAdjustments[r.account_id] = { date: r.date, actual: Number(r.actual) }; });
     localStorage.setItem('fd_balance_adj', JSON.stringify(balanceAdjustments));
   }
   hideSyncStatus();
@@ -1071,15 +1051,9 @@ const AUTH_PASSWORD = '1111'; // ← ここを変更してください
 async function checkAuth() {
   const ok = sessionStorage.getItem('fd_auth') === '1';
   const overlay = document.getElementById('loginOverlay');
-  if (ok) {
-    overlay.style.display = 'none';
-    await init();
-  } else {
-    overlay.style.display = 'flex';
-    setTimeout(() => document.getElementById('loginPassword')?.focus(), 100);
-  }
+  if (ok) { overlay.style.display = 'none'; await init(); }
+  else { overlay.style.display = 'flex'; setTimeout(() => document.getElementById('loginPassword')?.focus(), 100); }
 }
-
 async function doLogin() {
   const pw = document.getElementById('loginPassword').value;
   const errEl = document.getElementById('loginError');
@@ -1094,7 +1068,6 @@ async function doLogin() {
     document.getElementById('loginPassword').focus();
   }
 }
-
 // ===== INIT =====
 async function init() {
   await load();
@@ -1603,7 +1576,7 @@ function renderDailyTable() {
     rows.push(`
       <tr class="${isTransfer?'row-transfer':''} ${isCard?'row-card':''}" style="${rowStyle}"
           draggable="true" data-id="${e.id}" data-date="${e.date}">
-        <td style="text-align:center;padding:4px 2px;width:24px;">
+        <td style="text-align:center;padding:0 2px;width:24px;">
           <span class="drag-handle" title="同日付の行を並び替え">⠿</span>
         </td>
         <td class="mono">${e.date}</td>
@@ -1630,86 +1603,70 @@ function renderDailyTable() {
 }
 
 // ===== DRAG AND DROP =====
-let dragSrcId = null;
+// DOMを直接並び替えてからID順序でentriesを再構築するシンプルな方式
+let dragSrcEl = null;
 
 function initDragDrop() {
   const tbody = document.getElementById('dailyTableBody');
   if (!tbody) return;
 
-  const rows = Array.from(tbody.querySelectorAll('tr[draggable]'));
+  tbody.querySelectorAll('tr[data-id]').forEach(row => {
 
-  rows.forEach(row => {
     row.addEventListener('dragstart', e => {
-      dragSrcId = parseInt(row.dataset.id);
-      setTimeout(() => row.classList.add('dragging'), 0);
+      dragSrcEl = row;
       e.dataTransfer.effectAllowed = 'move';
       e.dataTransfer.setData('text/plain', row.dataset.id);
+      setTimeout(() => row.classList.add('dragging'), 0);
     });
 
     row.addEventListener('dragend', () => {
       row.classList.remove('dragging');
-      tbody.querySelectorAll('tr').forEach(r => {
-        r.classList.remove('drag-over-top', 'drag-over-bottom');
-      });
+      tbody.querySelectorAll('tr').forEach(r => r.classList.remove('drag-over'));
+      dragSrcEl = null;
     });
 
     row.addEventListener('dragover', e => {
       e.preventDefault();
-      const targetId = parseInt(row.dataset.id);
-      if (dragSrcId === null || dragSrcId === targetId) return;
-
-      const srcEntry = entries.find(en => en.id === dragSrcId);
-      const tgtEntry = entries.find(en => en.id === targetId);
-      if (!srcEntry || !tgtEntry || srcEntry.date !== tgtEntry.date) {
+      if (!dragSrcEl || dragSrcEl === row) return;
+      // 同じ日付のみ許可
+      if (dragSrcEl.dataset.date !== row.dataset.date) {
         e.dataTransfer.dropEffect = 'none';
         return;
       }
       e.dataTransfer.dropEffect = 'move';
-
-      // ドロップ位置（上半分か下半分か）を判定
-      tbody.querySelectorAll('tr').forEach(r => {
-        r.classList.remove('drag-over-top', 'drag-over-bottom');
-      });
-      const rect = row.getBoundingClientRect();
-      const midY = rect.top + rect.height / 2;
-      if (e.clientY < midY) {
-        row.classList.add('drag-over-top');
-      } else {
-        row.classList.add('drag-over-bottom');
-      }
+      tbody.querySelectorAll('tr').forEach(r => r.classList.remove('drag-over'));
+      row.classList.add('drag-over');
     });
 
     row.addEventListener('dragleave', () => {
-      row.classList.remove('drag-over-top', 'drag-over-bottom');
+      row.classList.remove('drag-over');
     });
 
     row.addEventListener('drop', async e => {
       e.preventDefault();
-      const targetId = parseInt(row.dataset.id);
-      tbody.querySelectorAll('tr').forEach(r => {
-        r.classList.remove('drag-over-top', 'drag-over-bottom', 'dragging');
-      });
+      e.stopPropagation();
+      tbody.querySelectorAll('tr').forEach(r => r.classList.remove('drag-over', 'dragging'));
 
-      if (dragSrcId === null || dragSrcId === targetId) { dragSrcId = null; return; }
+      if (!dragSrcEl || dragSrcEl === row) return;
+      if (dragSrcEl.dataset.date !== row.dataset.date) return;
 
-      const srcEntry = entries.find(en => en.id === dragSrcId);
-      const tgtEntry = entries.find(en => en.id === targetId);
-      if (!srcEntry || !tgtEntry || srcEntry.date !== tgtEntry.date) { dragSrcId = null; return; }
+      // DOMを直接入れ替え（tbodyのinsertBeforeを使用）
+      tbody.insertBefore(dragSrcEl, row);
 
-      // ドロップ位置の上下判定
-      const rect = row.getBoundingClientRect();
-      const insertBefore = e.clientY < rect.top + rect.height / 2;
+      // DOM順序からentriesを再ソート
+      const domOrder = Array.from(tbody.querySelectorAll('tr[data-id]'))
+        .map(r => parseInt(r.dataset.id));
 
-      // entriesから srcを取り出す
-      const srcIdx = entries.indexOf(srcEntry);
-      entries.splice(srcIdx, 1);
+      // domOrderに従ってentriesを並び替え
+      const idToEntry = {};
+      entries.forEach(en => { idToEntry[en.id] = en; });
 
-      // tgtの新しい位置を取得してinsert
-      const newTgtIdx = entries.indexOf(tgtEntry);
-      const insertIdx = insertBefore ? newTgtIdx : newTgtIdx + 1;
-      entries.splice(insertIdx, 0, srcEntry);
+      // DOM順にあるIDのみ並び替え、残りはそのまま後ろに
+      const reordered = domOrder.map(id => idToEntry[id]).filter(Boolean);
+      const notInDom = entries.filter(en => !domOrder.includes(en.id));
+      entries = [...reordered, ...notInDom];
 
-      dragSrcId = null;
+      dragSrcEl = null;
       await save();
       renderDailyTable();
       showToast('並び順を更新しました');
@@ -2079,9 +2036,7 @@ async function deleteEntry(id) {
     entries = entries.filter(x => x.id !== id);
   }
   if (editingId === id) editingId = null;
-  for (const did of deleteIds) {
-    await sbFetch(`/rest/v1/entries?id=eq.${did}`, 'DELETE');
-  }
+  for (const did of deleteIds) await sbFetch(`/rest/v1/entries?id=eq.${did}`, 'DELETE');
   localStorage.setItem('fd_entries_v3', JSON.stringify(entries));
   renderAll();
 }
