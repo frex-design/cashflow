@@ -203,16 +203,11 @@
   ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
 
   /* ===== DRAG AND DROP ===== */
-  .drag-handle {
-    cursor: grab; color: var(--border2); font-size: 14px; padding: 0 4px;
-    user-select: none; -webkit-user-select: none;
-    transition: color 0.15s;
-  }
-  .drag-handle:hover { color: var(--text2); }
-  .drag-handle:active { cursor: grabbing; }
-  tr.dragging { opacity: 0.4; background: rgba(37,99,235,0.06) !important; }
-  tr.drag-over { border-top: 2px solid var(--accent); }
-  tr[draggable="false"] .drag-handle { cursor: not-allowed; opacity: 0.25; }
+  .drag-handle { cursor: grab; color: var(--border2); font-size: 16px; padding: 0 4px; user-select: none; -webkit-user-select: none; transition: color 0.15s; display: inline-block; }
+  .drag-handle:hover { color: var(--accent); }
+  tr.dragging td { opacity: 0.35; }
+  tr.drag-over-top td { border-top: 2px solid var(--accent) !important; }
+  tr.drag-over-bottom td { border-bottom: 2px solid var(--accent) !important; }
 
   /* ===== MISC ===== */
   .empty-state { text-align: center; padding: 40px; color: var(--text3); font-size: 13px; }
@@ -618,7 +613,7 @@
         <table>
           <thead>
             <tr>
-              <th style="width:28px;"></th>
+              <th style="width:24px;padding:0;"></th>
               <th>日付</th>
               <th>口座</th>
               <th>区分</th>
@@ -1608,7 +1603,9 @@ function renderDailyTable() {
     rows.push(`
       <tr class="${isTransfer?'row-transfer':''} ${isCard?'row-card':''}" style="${rowStyle}"
           draggable="true" data-id="${e.id}" data-date="${e.date}">
-        <td style="text-align:center;padding:0 4px;"><span class="drag-handle" title="同日付の行を並び替え">⠿</span></td>
+        <td style="text-align:center;padding:4px 2px;width:24px;">
+          <span class="drag-handle" title="同日付の行を並び替え">⠿</span>
+        </td>
         <td class="mono">${e.date}</td>
         <td><span style="display:inline-flex;align-items:center;gap:5px;">
           <span style="width:6px;height:6px;border-radius:50%;background:${acct?.color||'#999'}"></span>
@@ -1639,50 +1636,78 @@ function initDragDrop() {
   const tbody = document.getElementById('dailyTableBody');
   if (!tbody) return;
 
-  tbody.querySelectorAll('tr[draggable]').forEach(row => {
+  const rows = Array.from(tbody.querySelectorAll('tr[draggable]'));
+
+  rows.forEach(row => {
     row.addEventListener('dragstart', e => {
       dragSrcId = parseInt(row.dataset.id);
-      row.classList.add('dragging');
+      setTimeout(() => row.classList.add('dragging'), 0);
       e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', row.dataset.id);
     });
+
     row.addEventListener('dragend', () => {
       row.classList.remove('dragging');
-      tbody.querySelectorAll('tr').forEach(r => r.classList.remove('drag-over'));
+      tbody.querySelectorAll('tr').forEach(r => {
+        r.classList.remove('drag-over-top', 'drag-over-bottom');
+      });
     });
+
     row.addEventListener('dragover', e => {
       e.preventDefault();
-      const targetId = parseInt(row.dataset.id);
-      if (dragSrcId === null || dragSrcId === targetId) return;
-      // 同じ日付のみドロップ可能
-      const srcEntry  = entries.find(en => en.id === dragSrcId);
-      const tgtEntry  = entries.find(en => en.id === targetId);
-      if (!srcEntry || !tgtEntry || srcEntry.date !== tgtEntry.date) {
-        e.dataTransfer.dropEffect = 'none';
-        return;
-      }
-      e.dataTransfer.dropEffect = 'move';
-      tbody.querySelectorAll('tr').forEach(r => r.classList.remove('drag-over'));
-      row.classList.add('drag-over');
-    });
-    row.addEventListener('dragleave', () => {
-      row.classList.remove('drag-over');
-    });
-    row.addEventListener('drop', async e => {
-      e.preventDefault();
-      row.classList.remove('drag-over');
       const targetId = parseInt(row.dataset.id);
       if (dragSrcId === null || dragSrcId === targetId) return;
 
       const srcEntry = entries.find(en => en.id === dragSrcId);
       const tgtEntry = entries.find(en => en.id === targetId);
-      if (!srcEntry || !tgtEntry || srcEntry.date !== tgtEntry.date) return;
+      if (!srcEntry || !tgtEntry || srcEntry.date !== tgtEntry.date) {
+        e.dataTransfer.dropEffect = 'none';
+        return;
+      }
+      e.dataTransfer.dropEffect = 'move';
 
-      // entriesの中でsrcをtgtの位置に移動
-      const srcIdx = entries.findIndex(en => en.id === dragSrcId);
-      const tgtIdx = entries.findIndex(en => en.id === targetId);
+      // ドロップ位置（上半分か下半分か）を判定
+      tbody.querySelectorAll('tr').forEach(r => {
+        r.classList.remove('drag-over-top', 'drag-over-bottom');
+      });
+      const rect = row.getBoundingClientRect();
+      const midY = rect.top + rect.height / 2;
+      if (e.clientY < midY) {
+        row.classList.add('drag-over-top');
+      } else {
+        row.classList.add('drag-over-bottom');
+      }
+    });
+
+    row.addEventListener('dragleave', () => {
+      row.classList.remove('drag-over-top', 'drag-over-bottom');
+    });
+
+    row.addEventListener('drop', async e => {
+      e.preventDefault();
+      const targetId = parseInt(row.dataset.id);
+      tbody.querySelectorAll('tr').forEach(r => {
+        r.classList.remove('drag-over-top', 'drag-over-bottom', 'dragging');
+      });
+
+      if (dragSrcId === null || dragSrcId === targetId) { dragSrcId = null; return; }
+
+      const srcEntry = entries.find(en => en.id === dragSrcId);
+      const tgtEntry = entries.find(en => en.id === targetId);
+      if (!srcEntry || !tgtEntry || srcEntry.date !== tgtEntry.date) { dragSrcId = null; return; }
+
+      // ドロップ位置の上下判定
+      const rect = row.getBoundingClientRect();
+      const insertBefore = e.clientY < rect.top + rect.height / 2;
+
+      // entriesから srcを取り出す
+      const srcIdx = entries.indexOf(srcEntry);
       entries.splice(srcIdx, 1);
-      const newTgtIdx = entries.findIndex(en => en.id === targetId);
-      entries.splice(newTgtIdx, 0, srcEntry);
+
+      // tgtの新しい位置を取得してinsert
+      const newTgtIdx = entries.indexOf(tgtEntry);
+      const insertIdx = insertBefore ? newTgtIdx : newTgtIdx + 1;
+      entries.splice(insertIdx, 0, srcEntry);
 
       dragSrcId = null;
       await save();
