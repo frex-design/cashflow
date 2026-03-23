@@ -202,6 +202,18 @@
   ::-webkit-scrollbar-track { background: var(--bg3); }
   ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
 
+  /* ===== DRAG AND DROP ===== */
+  .drag-handle {
+    cursor: grab; color: var(--border2); font-size: 14px; padding: 0 4px;
+    user-select: none; -webkit-user-select: none;
+    transition: color 0.15s;
+  }
+  .drag-handle:hover { color: var(--text2); }
+  .drag-handle:active { cursor: grabbing; }
+  tr.dragging { opacity: 0.4; background: rgba(37,99,235,0.06) !important; }
+  tr.drag-over { border-top: 2px solid var(--accent); }
+  tr[draggable="false"] .drag-handle { cursor: not-allowed; opacity: 0.25; }
+
   /* ===== MISC ===== */
   .empty-state { text-align: center; padding: 40px; color: var(--text3); font-size: 13px; }
   .tag-plan { color: var(--accent); }
@@ -606,6 +618,7 @@
         <table>
           <thead>
             <tr>
+              <th style="width:28px;"></th>
               <th>日付</th>
               <th>口座</th>
               <th>区分</th>
@@ -939,41 +952,6 @@ const INIT_DATE = '2026-03-31';
 // 指定日の実残高を基準として上書きする
 let balanceAdjustments = {};
 
-function saveAdjustments() {
-  localStorage.setItem('fd_balance_adj', JSON.stringify(balanceAdjustments));
-  const rows = Object.entries(balanceAdjustments).map(([account_id, v]) => ({
-    account_id, date: v.date, actual: v.actual
-  }));
-  if (rows.length > 0) {
-    sbFetch('/rest/v1/balance_adjustments?on_conflict=account_id', 'POST', rows);
-  }
-}
-function loadAdjustments() {
-  const d = localStorage.getItem('fd_balance_adj');
-  if (d) balanceAdjustments = JSON.parse(d);
-}
-
-// Transfer presets: [fromId, toId, label]
-const TRANSFER_PRESETS = [
-  { from: 'akita',   to: 'gmo',         label: '秋田銀行 → GMOあおぞら' },
-  { from: 'akita',   to: 'paild',       label: '秋田銀行 → Paild口座' },
-  { from: 'akita',   to: 'cash_honsha', label: '秋田銀行 → 現金（本社）' },
-  { from: 'akita',   to: 'akita_yokote',label: '秋田銀行 → 秋田銀行（横手）' },
-  { from: 'akita',   to: 'cash_yokote', label: '秋田銀行 → 現金（横手）' },
-  { from: 'shinkin', to: 'gmo',         label: '信用金庫 → GMOあおぞら' },
-  { from: 'shinkin', to: 'paild',       label: '信用金庫 → Paild口座' },
-  { from: 'shinkin', to: 'cash_honsha', label: '信用金庫 → 現金（本社）' },
-  { from: 'shinkin', to: 'akita_yokote',label: '信用金庫 → 秋田銀行（横手）' },
-  { from: 'shinkin', to: 'cash_yokote', label: '信用金庫 → 現金（横手）' },
-];
-
-let entries = [];
-let charts = {};
-let chartPeriod = 30;
-let editingId = null;
-let chartMonth = null; // 'YYYY-MM' for chart tab
-let miniMonth = null;  // 'YYYY-MM' for mini chart
-
 // ===== SUPABASE CONFIG =====
 const SUPABASE_URL = 'https://grhqmuqzpjwiuyexasmm.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_B7NQW7VvEnTBXK4rIu-_Gw_gT6VuZ7u';
@@ -1028,6 +1006,39 @@ function hideSyncStatus() {
   const el = document.getElementById('syncStatus');
   if (el) el.style.display = 'none';
 }
+
+function saveAdjustments() {
+  localStorage.setItem('fd_balance_adj', JSON.stringify(balanceAdjustments));
+  const rows = Object.entries(balanceAdjustments).map(([account_id, v]) => ({
+    account_id, date: v.date, actual: v.actual
+  }));
+  if (rows.length > 0) sbFetch('/rest/v1/balance_adjustments?on_conflict=account_id', 'POST', rows);
+}
+function loadAdjustments() {
+  const d = localStorage.getItem('fd_balance_adj');
+  if (d) balanceAdjustments = JSON.parse(d);
+}
+
+// Transfer presets: [fromId, toId, label]
+const TRANSFER_PRESETS = [
+  { from: 'akita',   to: 'gmo',         label: '秋田銀行 → GMOあおぞら' },
+  { from: 'akita',   to: 'paild',       label: '秋田銀行 → Paild口座' },
+  { from: 'akita',   to: 'cash_honsha', label: '秋田銀行 → 現金（本社）' },
+  { from: 'akita',   to: 'akita_yokote',label: '秋田銀行 → 秋田銀行（横手）' },
+  { from: 'akita',   to: 'cash_yokote', label: '秋田銀行 → 現金（横手）' },
+  { from: 'shinkin', to: 'gmo',         label: '信用金庫 → GMOあおぞら' },
+  { from: 'shinkin', to: 'paild',       label: '信用金庫 → Paild口座' },
+  { from: 'shinkin', to: 'cash_honsha', label: '信用金庫 → 現金（本社）' },
+  { from: 'shinkin', to: 'akita_yokote',label: '信用金庫 → 秋田銀行（横手）' },
+  { from: 'shinkin', to: 'cash_yokote', label: '信用金庫 → 現金（横手）' },
+];
+
+let entries = [];
+let charts = {};
+let chartPeriod = 30;
+let editingId = null;
+let chartMonth = null; // 'YYYY-MM' for chart tab
+let miniMonth = null;  // 'YYYY-MM' for mini chart
 
 // ===== STORAGE =====
 async function save() {
@@ -1521,7 +1532,7 @@ function renderDailyTable() {
   filtered.sort((a,b) => a.date.localeCompare(b.date) || a.id - b.id);
 
   if (filtered.length === 0) {
-    document.getElementById('dailyTableBody').innerHTML = `<tr><td colspan="11" class="empty-state">データがありません。入出金を登録してください。</td></tr>`;
+    document.getElementById('dailyTableBody').innerHTML = `<tr><td colspan="12" class="empty-state">データがありません。入出金を登録してください。</td></tr>`;
     return;
   }
 
@@ -1595,7 +1606,9 @@ function renderDailyTable() {
     actionBtns += `</div>`;
 
     rows.push(`
-      <tr class="${isTransfer?'row-transfer':''} ${isCard?'row-card':''}" style="${rowStyle}">
+      <tr class="${isTransfer?'row-transfer':''} ${isCard?'row-card':''}" style="${rowStyle}"
+          draggable="true" data-id="${e.id}" data-date="${e.date}">
+        <td style="text-align:center;padding:0 4px;"><span class="drag-handle" title="同日付の行を並び替え">⠿</span></td>
         <td class="mono">${e.date}</td>
         <td><span style="display:inline-flex;align-items:center;gap:5px;">
           <span style="width:6px;height:6px;border-radius:50%;background:${acct?.color||'#999'}"></span>
@@ -1616,6 +1629,67 @@ function renderDailyTable() {
   });
 
   document.getElementById('dailyTableBody').innerHTML = rows.join('');
+  initDragDrop();
+}
+
+// ===== DRAG AND DROP =====
+let dragSrcId = null;
+
+function initDragDrop() {
+  const tbody = document.getElementById('dailyTableBody');
+  if (!tbody) return;
+
+  tbody.querySelectorAll('tr[draggable]').forEach(row => {
+    row.addEventListener('dragstart', e => {
+      dragSrcId = parseInt(row.dataset.id);
+      row.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    row.addEventListener('dragend', () => {
+      row.classList.remove('dragging');
+      tbody.querySelectorAll('tr').forEach(r => r.classList.remove('drag-over'));
+    });
+    row.addEventListener('dragover', e => {
+      e.preventDefault();
+      const targetId = parseInt(row.dataset.id);
+      if (dragSrcId === null || dragSrcId === targetId) return;
+      // 同じ日付のみドロップ可能
+      const srcEntry  = entries.find(en => en.id === dragSrcId);
+      const tgtEntry  = entries.find(en => en.id === targetId);
+      if (!srcEntry || !tgtEntry || srcEntry.date !== tgtEntry.date) {
+        e.dataTransfer.dropEffect = 'none';
+        return;
+      }
+      e.dataTransfer.dropEffect = 'move';
+      tbody.querySelectorAll('tr').forEach(r => r.classList.remove('drag-over'));
+      row.classList.add('drag-over');
+    });
+    row.addEventListener('dragleave', () => {
+      row.classList.remove('drag-over');
+    });
+    row.addEventListener('drop', async e => {
+      e.preventDefault();
+      row.classList.remove('drag-over');
+      const targetId = parseInt(row.dataset.id);
+      if (dragSrcId === null || dragSrcId === targetId) return;
+
+      const srcEntry = entries.find(en => en.id === dragSrcId);
+      const tgtEntry = entries.find(en => en.id === targetId);
+      if (!srcEntry || !tgtEntry || srcEntry.date !== tgtEntry.date) return;
+
+      // entriesの中でsrcをtgtの位置に移動
+      const srcIdx = entries.findIndex(en => en.id === dragSrcId);
+      const tgtIdx = entries.findIndex(en => en.id === targetId);
+      entries.splice(srcIdx, 1);
+      const newTgtIdx = entries.findIndex(en => en.id === targetId);
+      entries.splice(newTgtIdx, 0, srcEntry);
+
+      dragSrcId = null;
+      await save();
+      renderDailyTable();
+      showToast('並び順を更新しました');
+    });
+  });
 }
 
 // ===== INLINE EDIT ROW =====
