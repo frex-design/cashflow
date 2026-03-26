@@ -1005,6 +1005,21 @@ function loadAdjustments() {
   const d = localStorage.getItem('fd_balance_adj');
   if (d) balanceAdjustments = JSON.parse(d);
 }
+// ===== リアルタイム更新タイマー =====
+function startRealtimeSync() {
+  setInterval(async () => {
+    const data = await sbFetch('/rest/v1/entries?select=*&order=date.asc,sort_order.asc');
+    if (data && Array.isArray(data)) {
+      entries = data.map(rowToEntry);
+      localStorage.setItem('fd_entries_v3', JSON.stringify(entries));
+      renderSidebar();
+      renderSalesTicker();
+      updateAlerts();
+      if (document.getElementById('panel-daily').classList.contains('active')) renderDailyTable();
+      if (document.getElementById('panel-chart').classList.contains('active')) renderCharts();
+    }
+  }, 30000);
+}
 
 // Transfer presets: [fromId, toId, label]
 const TRANSFER_PRESETS = [
@@ -1275,24 +1290,19 @@ function renderSidebar() {
     const bal = getBalanceAt(a.id, today);
     const prevBal = getBalanceAt(a.id, yesterday);
     const diff = bal - prevBal;
-    // しきい値警告は秋田銀行のみ
     const warn = a.id === 'akita' && bal < threshold && bal >= 0;
-    const isMinus = bal < 0;
     const diffHtml = diff !== 0
       ? `<span style="font-size:11px; color:${diff>0?'var(--green)':'var(--red)'}; font-family:var(--mono);">${diff>0?'+':''}${Math.round(diff).toLocaleString('ja-JP')}</span>`
       : '';
     total += bal;
-    let cardStyle = '';
-    if (isMinus) cardStyle = 'border-color:rgba(220,38,38,0.5);background:rgba(220,38,38,0.03);';
-    else if (warn) cardStyle = 'border-color:rgba(217,119,6,0.5);';
     return `
-      <div class="account-card" style="${cardStyle}">
+      <div class="account-card" style="${warn ? 'border-color:rgba(217,119,6,0.5);' : ''}">
         <div class="account-card-top">
           <span class="account-name">${a.name}</span>
           <span class="account-dot" style="background:${a.color}"></span>
         </div>
         <div style="display:flex; justify-content:space-between; align-items:baseline;">
-          <div class="account-balance" style="${isMinus?'color:var(--red);':''}${warn?'color:var(--yellow);':''}">${fmt(bal)}</div>
+          <div class="account-balance">${fmt(bal)}</div>
           ${diffHtml}
         </div>
       </div>`;
@@ -1301,30 +1311,12 @@ function renderSidebar() {
   document.getElementById('accountCards').innerHTML = html;
   document.getElementById('totalBalance').textContent = fmt(total);
 
-  // Timestamp（現在時刻）
+  // Timestamp
   const ts = document.getElementById('sidebarTimestamp');
   if (ts) {
     const now = new Date();
     ts.textContent = `本日 ${now.getHours()}:${String(now.getMinutes()).padStart(2,'0')} 現在`;
   }
-}
-
-// ===== リアルタイム更新タイマー =====
-// 30秒ごとにSupabaseから最新データを取得してサイドバーを更新
-function startRealtimeSync() {
-  setInterval(async () => {
-    const data = await sbFetch('/rest/v1/entries?select=*&order=date.asc,sort_order.asc');
-    if (data && Array.isArray(data)) {
-      entries = data.map(rowToEntry);
-      localStorage.setItem('fd_entries_v3', JSON.stringify(entries));
-      renderSidebar();
-      renderSalesTicker();
-      updateAlerts();
-      // 現在表示中のタブも更新
-      if (document.getElementById('panel-daily').classList.contains('active')) renderDailyTable();
-      if (document.getElementById('panel-chart').classList.contains('active')) renderCharts();
-    }
-  }, 30000); // 30秒
 }
 
 // ===== ALERTS =====
@@ -1642,7 +1634,6 @@ let dragSrcId = null;
 function initDragDrop() {
   const tbody = document.getElementById('dailyTableBody');
   if (!tbody) return;
-
   tbody.querySelectorAll('tr[data-id]').forEach(row => {
     row.addEventListener('dragstart', e => {
       dragSrcId = parseInt(row.dataset.id);
@@ -1659,45 +1650,31 @@ function initDragDrop() {
       if (dragSrcId === null || dragSrcId === parseInt(row.dataset.id)) return;
       const srcEntry = entries.find(en => en.id === dragSrcId);
       const tgtEntry = entries.find(en => en.id === parseInt(row.dataset.id));
-      if (!srcEntry || !tgtEntry || srcEntry.date !== tgtEntry.date) {
-        e.dataTransfer.dropEffect = 'none'; return;
-      }
+      if (!srcEntry || !tgtEntry || srcEntry.date !== tgtEntry.date) { e.dataTransfer.dropEffect = 'none'; return; }
       e.dataTransfer.dropEffect = 'move';
       tbody.querySelectorAll('tr').forEach(r => r.classList.remove('drag-over'));
       row.classList.add('drag-over');
     });
-    row.addEventListener('dragleave', () => {
-      row.classList.remove('drag-over');
-    });
+    row.addEventListener('dragleave', () => row.classList.remove('drag-over'));
     row.addEventListener('drop', async e => {
       e.preventDefault();
       e.stopPropagation();
       tbody.querySelectorAll('tr').forEach(r => r.classList.remove('drag-over', 'dragging'));
-
       const targetId = parseInt(row.dataset.id);
       if (dragSrcId === null || dragSrcId === targetId) { dragSrcId = null; return; }
-
       const srcEntry = entries.find(en => en.id === dragSrcId);
       const tgtEntry = entries.find(en => en.id === targetId);
       if (!srcEntry || !tgtEntry || srcEntry.date !== tgtEntry.date) { dragSrcId = null; return; }
-
-      // 同日付の行を現在のsort_order順で取得
       const sameDateEntries = entries
         .filter(en => en.date === srcEntry.date)
         .sort((a,b) => (a.sort_order!=null?a.sort_order:a.id) - (b.sort_order!=null?b.sort_order:b.id));
-
       const orderedIds = sameDateEntries.map(en => en.id);
       const srcPos = orderedIds.indexOf(dragSrcId);
       const tgtPos = orderedIds.indexOf(targetId);
       if (srcPos === -1 || tgtPos === -1) { dragSrcId = null; return; }
-
       orderedIds.splice(srcPos, 1);
       orderedIds.splice(tgtPos, 0, dragSrcId);
-
-      // sort_orderを10刻みで更新
       const updates = orderedIds.map((id, idx) => ({ id, sort_order: (idx + 1) * 10 }));
-
-      // ローカルを先に更新して即座に再描画
       updates.forEach(u => {
         const en = entries.find(en => en.id === u.id);
         if (en) en.sort_order = u.sort_order;
@@ -1706,8 +1683,6 @@ function initDragDrop() {
       dragSrcId = null;
       renderDailyTable();
       showToast('並び順を更新しました');
-
-      // バックグラウンドでSupabaseに保存
       for (const u of updates) {
         await sbFetch(`/rest/v1/entries?id=eq.${u.id}`, 'PATCH', { sort_order: u.sort_order });
       }
@@ -1797,6 +1772,7 @@ async function saveEditModal() {
     ...entries[idx],
     date,
     account: document.getElementById('em_account').value,
+    type: document.getElementById('em_type').value,
     status: document.getElementById('em_status').value,
     amount,
     payMethod: document.getElementById('em_payMethod').value,
@@ -1808,6 +1784,7 @@ async function saveEditModal() {
   await save();
   renderAll();
   if (document.getElementById('panel-chart').classList.contains('active')) renderCharts();
+  showToast('保存しました');
 }
 
 async function saveEdit(id) {
