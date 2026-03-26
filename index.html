@@ -816,10 +816,9 @@
           <option>借入金(短期)</option><option>外注加工費</option><option>その他</option>
         </select>
       </div>
-    </div>
-    <div style="display:flex; justify-content:flex-end; gap:8px;">
+    <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:16px;">
       <button class="btn btn-ghost" onclick="closeEditModal()">キャンセル</button>
-      <button class="btn btn-primary" onclick="saveEditModal()">保存</button>
+      <button class="btn btn-primary" onclick="saveEditModal()">💾 保存</button>
     </div>
   </div>
 </div>
@@ -1005,16 +1004,13 @@ function loadAdjustments() {
   const d = localStorage.getItem('fd_balance_adj');
   if (d) balanceAdjustments = JSON.parse(d);
 }
-// ===== リアルタイム更新タイマー =====
 function startRealtimeSync() {
   setInterval(async () => {
     const data = await sbFetch('/rest/v1/entries?select=*&order=date.asc,sort_order.asc');
     if (data && Array.isArray(data)) {
       entries = data.map(rowToEntry);
       localStorage.setItem('fd_entries_v3', JSON.stringify(entries));
-      renderSidebar();
-      renderSalesTicker();
-      updateAlerts();
+      renderSidebar(); renderSalesTicker(); updateAlerts();
       if (document.getElementById('panel-daily').classList.contains('active')) renderDailyTable();
       if (document.getElementById('panel-chart').classList.contains('active')) renderCharts();
     }
