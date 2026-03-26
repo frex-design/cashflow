@@ -1027,6 +1027,32 @@ function startRealtimeSync() {
   }, 30000);
 }
 
+// ===== 横手帳簿への自動送信 =====
+async function sendToYokote(date, amount, status) {
+  const yokoteId = Date.now() + Math.floor(Math.random() * 1000);
+  const row = {
+    id: yokoteId,
+    date: date,
+    account: 'akita_yokote',
+    entry_type: 'in',
+    status: status,
+    amount: amount,
+    partner: '秋田銀行（本社）',
+    description: '本社からの資金移動',
+    category: '資金移動',
+    pay_method: null,
+    is_card: false,
+    is_transfer: true,
+    sort_order: yokoteId,
+  };
+  const result = await sbFetch('/rest/v1/entries_yokote?on_conflict=id', 'POST', [row]);
+  if (result) {
+    showToast('横手帳簿にも記帳しました ✓');
+  } else {
+    console.error('横手帳簿への送信に失敗しました');
+  }
+}
+
 // Transfer presets: [fromId, toId, label]
 const TRANSFER_PRESETS = [
   { from: 'akita',   to: 'gmo',         label: '秋田銀行 → GMOあおぞら' },
@@ -1519,13 +1545,10 @@ function renderDailyTable() {
   const filterStatus = document.getElementById('filterStatus').value;
   const filterSearchRaw = (document.getElementById('filterSearch')?.value || '').trim();
   const filterSearch = filterSearchRaw.toLowerCase();
-
-  // 検索クリアボタンの表示制御
   const clearBtn = document.getElementById('filterSearchClear');
   if (clearBtn) clearBtn.style.display = filterSearch ? 'block' : 'none';
 
   let filtered = entries.filter(e => {
-    // Year mode
     if (filterYearMode && filterYearValue) {
       if (!e.date.startsWith(filterYearValue)) return false;
     } else if (filterMonth) {
@@ -1533,7 +1556,6 @@ function renderDailyTable() {
     }
     if (filterAccount !== 'all' && e.account !== filterAccount) return false;
     if (filterStatus !== 'all' && e.status !== filterStatus) return false;
-    // 検索フィルター（取引先・摘要・科目）
     if (filterSearch) {
       const partner  = (e.partner  || '').toLowerCase();
       const desc     = (e.desc     || '').toLowerCase();
@@ -2048,6 +2070,11 @@ async function addTransfer() {
   renderAll();
   if (document.getElementById('panel-chart').classList.contains('active')) renderCharts();
   if (document.getElementById('panel-monthly').classList.contains('active')) renderMonthly();
+
+  // 秋田銀行→秋田銀行（横手）の場合のみ横手帳簿に自動送信
+  if (fromId === 'akita' && toId === 'akita_yokote') {
+    await sendToYokote(date, amount, status);
+  }
 }
 
 // ===== DELETE WITH CONFIRM =====
