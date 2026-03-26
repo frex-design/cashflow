@@ -606,6 +606,15 @@
             <option value="confirmed">確定のみ</option>
             <option value="plan">予定のみ</option>
           </select>
+          <div style="display:flex;align-items:center;gap:0;border:1px solid var(--border);border-radius:5px;overflow:hidden;background:var(--bg2);">
+            <span style="padding:0 8px;color:var(--text3);font-size:14px;">🔍</span>
+            <input type="text" id="filterSearch" placeholder="取引先・摘要・科目で検索"
+              oninput="renderDailyTable()"
+              style="border:none;outline:none;background:transparent;font-family:var(--sans);font-size:13px;color:var(--text);padding:6px 8px 6px 0;width:200px;">
+            <button onclick="document.getElementById('filterSearch').value='';renderDailyTable();"
+              id="filterSearchClear"
+              style="border:none;background:transparent;color:var(--text3);cursor:pointer;padding:0 8px;font-size:14px;display:none;">✕</button>
+          </div>
         </div>
       </div>
       <div class="table-wrap">
@@ -816,9 +825,10 @@
           <option>借入金(短期)</option><option>外注加工費</option><option>その他</option>
         </select>
       </div>
-    <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:16px;">
+    </div>
+    <div style="display:flex; justify-content:flex-end; gap:8px;">
       <button class="btn btn-ghost" onclick="closeEditModal()">キャンセル</button>
-      <button class="btn btn-primary" onclick="saveEditModal()">💾 保存</button>
+      <button class="btn btn-primary" onclick="saveEditModal()">保存</button>
     </div>
   </div>
 </div>
@@ -1507,6 +1517,12 @@ function renderDailyTable() {
   const filterMonth = document.getElementById('filterMonth').value;
   const filterAccount = document.getElementById('filterAccount').value;
   const filterStatus = document.getElementById('filterStatus').value;
+  const filterSearchRaw = (document.getElementById('filterSearch')?.value || '').trim();
+  const filterSearch = filterSearchRaw.toLowerCase();
+
+  // 検索クリアボタンの表示制御
+  const clearBtn = document.getElementById('filterSearchClear');
+  if (clearBtn) clearBtn.style.display = filterSearch ? 'block' : 'none';
 
   let filtered = entries.filter(e => {
     // Year mode
@@ -1517,6 +1533,13 @@ function renderDailyTable() {
     }
     if (filterAccount !== 'all' && e.account !== filterAccount) return false;
     if (filterStatus !== 'all' && e.status !== filterStatus) return false;
+    // 検索フィルター（取引先・摘要・科目）
+    if (filterSearch) {
+      const partner  = (e.partner  || '').toLowerCase();
+      const desc     = (e.desc     || '').toLowerCase();
+      const category = (e.category || '').toLowerCase();
+      if (!partner.includes(filterSearch) && !desc.includes(filterSearch) && !category.includes(filterSearch)) return false;
+    }
     return true;
   });
   filtered.sort((a,b) => a.date.localeCompare(b.date) || (a.sort_order!=null?a.sort_order:a.id) - (b.sort_order!=null?b.sort_order:b.id));
