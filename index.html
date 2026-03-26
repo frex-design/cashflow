@@ -509,6 +509,10 @@
             <div class="form-group" style="align-self:end;">
               <button class="btn btn-primary btn-sm btn-register" id="submitBtn" onclick="submitEntry()">登録</button>
             </div>
+            <div class="form-group" style="align-self:end; flex-direction:row; align-items:center; gap:6px; padding-bottom:2px;">
+              <input type="checkbox" id="copyNextMonth" style="width:15px;height:15px;cursor:pointer;accent-color:var(--accent);">
+              <label for="copyNextMonth" style="font-size:12px;color:var(--text2);cursor:pointer;white-space:nowrap;">翌月同日にコピー</label>
+            </div>
           </div>
           <div id="editCancelArea" style="display:none; margin-top:4px;">
             <button class="btn btn-ghost btn-sm" onclick="cancelEdit()">編集キャンセル</button>
@@ -1026,31 +1030,17 @@ function startRealtimeSync() {
     }
   }, 30000);
 }
-
 // ===== 横手帳簿への自動送信 =====
 async function sendToYokote(date, amount, status) {
   const yokoteId = Date.now() + Math.floor(Math.random() * 1000);
   const row = {
-    id: yokoteId,
-    date: date,
-    account: 'akita_yokote',
-    entry_type: 'in',
-    status: status,
-    amount: amount,
-    partner: '秋田銀行（本社）',
-    description: '本社からの資金移動',
-    category: '資金移動',
-    pay_method: null,
-    is_card: false,
-    is_transfer: true,
-    sort_order: yokoteId,
+    id: yokoteId, date, account: 'akita_yokote', entry_type: 'in',
+    status, amount, partner: '秋田銀行（本社）',
+    description: '本社からの資金移動', category: '資金移動',
+    pay_method: null, is_card: false, is_transfer: true, sort_order: yokoteId,
   };
   const result = await sbFetch('/rest/v1/entries_yokote?on_conflict=id', 'POST', [row]);
-  if (result) {
-    showToast('横手帳簿にも記帳しました ✓');
-  } else {
-    console.error('横手帳簿への送信に失敗しました');
-  }
+  if (result) showToast('横手帳簿にも記帳しました ✓');
 }
 
 // Transfer presets: [fromId, toId, label]
@@ -2030,17 +2020,31 @@ async function submitEntry() {
   if (!date || !account || isNaN(amount) || amount < 0) { alert('日付・口座・金額は必須です'); return; }
   const payMethod = document.getElementById('entryPayMethod').value;
   const acct = ACCOUNTS.find(a => a.id === account);
+  const copyNext = document.getElementById('copyNextMonth')?.checked || false;
+
+  // 通常登録
   entries.push({ id: nextId++, date, account, type, status, amount, partner, desc, category, isCard: acct?.isCard || false, payMethod });
+
+  // 翌月同日コピー
+  if (copyNext) {
+    const d = new Date(date + 'T00:00:00');
+    d.setMonth(d.getMonth() + 1);
+    const nextDate = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    entries.push({ id: nextId++, date: nextDate, account, type, status, amount, partner, desc, category, isCard: acct?.isCard || false, payMethod });
+  }
+
   await save();
   document.getElementById('entryAmount').value = '';
   document.getElementById('entryPartner').value = '';
   document.getElementById('entryDesc').value = '';
   document.getElementById('entryCategory').value = '';
   document.getElementById('entryPayMethod').value = '';
+  // チェックボックスはそのまま維持（連続登録しやすいように）
   renderAll();
   if (document.getElementById('panel-chart').classList.contains('active')) renderCharts();
   if (document.getElementById('panel-compare').classList.contains('active')) renderCompare();
   if (document.getElementById('panel-monthly').classList.contains('active')) renderMonthly();
+  if (copyNext) showToast('登録＋翌月同日にコピーしました');
 }
 
 // ===== ADD TRANSFER =====
@@ -2059,9 +2063,7 @@ async function addTransfer() {
   const toAcct = ACCOUNTS.find(a => a.id === toId);
   const transferNote = `${fromAcct.name}→${toAcct.name}`;
 
-  // Out entry for source account
   entries.push({ id: nextId++, date, account: fromId, type: 'out', status, amount, partner: '', desc: `[資金移動] ${transferNote} ${desc}`.trim(), category: '資金移動', isTransfer: true, transferPair: nextId });
-  // In entry for destination account
   entries.push({ id: nextId++, date, account: toId, type: 'in', status, amount, partner: '', desc: `[資金移動] ${transferNote} ${desc}`.trim(), category: '資金移動', isTransfer: true, transferPair: nextId - 1 });
 
   await save();
