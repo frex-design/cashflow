@@ -2952,6 +2952,32 @@ function refreshPlanTotals() {
       totalCell.style.fontWeight = '700';
     }
   });
+
+  // 出金項目の%をリアルタイム更新（分母：年度の入金合計）
+  const inYearForOutPct = months.reduce((s, ym) => {
+    return s + (planManualData[`inTotal_${ym}`] || 0) + getPlanManual(`sim_${ym}`);
+  }, 0);
+  const fmtPctLabel = (amt, inTotal) => {
+    if (!inTotal || !amt) return '';
+    return `${(amt / inTotal * 100).toFixed(1)}%`;
+  };
+  // 通常出金科目
+  table.querySelectorAll('.out-pct-label[data-cat-pct]').forEach(span => {
+    const catKey = span.dataset.catPct;
+    let amt = 0;
+    if (catKey === 'manualOut') {
+      amt = months.reduce((s, ym) => s + getPlanManual(`manualOut_${ym}`), 0);
+    } else if (catKey === 'manualTravel') {
+      amt = months.reduce((s, ym) => s + getPlanManual(`manualTravel_${ym}`), 0);
+    } else if (catKey === 'manualOther') {
+      amt = months.reduce((s, ym) => s + getPlanManual(`manualOther_${ym}`), 0);
+    } else {
+      // 通常科目：data-out-cat属性のセルを集計
+      const catCells = table.querySelectorAll(`[data-out-cat="${catKey}"]`);
+      catCells.forEach(cell => { amt += parseInt(cell.textContent.replace(/,/g, '')) || 0; });
+    }
+    span.textContent = fmtPctLabel(amt, inYearForOutPct);
+  });
 }
 
 async function renderPlan() {
@@ -3097,13 +3123,13 @@ async function renderPlan() {
   // ===== 出金セクション =====
   html += `<tr class="row-section"><td>▼ 出金</td><td></td>${months.map(()=>'<td></td>').join('')}</tr>`;
   outOnlyCats.forEach(cat => {
-    html += `<tr><td style="padding-left:20px;">${cat}</td>`;
-    // 年度合計
+    const catKey = encodeURIComponent(cat);
+    html += `<tr><td style="padding-left:20px;">${cat}<span class="out-pct-label" data-cat-pct="${catKey}" style="font-size:10px;color:var(--text3);margin-left:6px;"></span></td>`;
     const yearTotal = months.reduce((s, ym) => s + sumCat(ym, cat, 'out'), 0);
     html += `<td class="val-out" style="background:#fdf0ef!important;">${fmtV(yearTotal)}</td>`;
     months.forEach(ym => {
       const v = sumCat(ym, cat, 'out');
-      html += `<td class="val-out">${fmtV(v)}</td>`;
+      html += `<td class="val-out" data-out-cat="${catKey}" data-out-ym="${ym}">${fmtV(v)}</td>`;
     });
     html += '</tr>';
   });
@@ -3111,7 +3137,7 @@ async function renderPlan() {
   // 外注加工費(手動)
   const manualOutYearTotal = months.reduce((s, ym) => s + getPlanManual(`manualOut_${ym}`), 0);
   html += `<tr style="background:#fdf0ef!important;">
-    <td style="padding-left:20px;font-weight:600;color:var(--red);">✏️ 外注加工費（手動）</td>
+    <td style="padding-left:20px;font-weight:600;color:var(--red);">✏️ 外注加工費（手動）<span class="out-pct-label" data-cat-pct="manualOut" style="font-size:10px;color:var(--text3);margin-left:6px;"></span></td>
     <td class="val-out" style="font-weight:700;background:#f5e0de!important;" id="manualOutYearTotalCell">${manualOutYearTotal ? manualOutYearTotal.toLocaleString('ja-JP') : ''}</td>`;
   months.forEach(ym => {
     const val = getPlanManual(`manualOut_${ym}`);
@@ -3128,7 +3154,7 @@ async function renderPlan() {
   // 旅費交通費(手動)
   const manualTravel = months.reduce((s, ym) => s + getPlanManual(`manualTravel_${ym}`), 0);
   html += `<tr style="background:#fdf0ef!important;">
-    <td style="padding-left:20px;font-weight:600;color:var(--red);">✏️ 旅費交通費（手動）</td>
+    <td style="padding-left:20px;font-weight:600;color:var(--red);">✏️ 旅費交通費（手動）<span class="out-pct-label" data-cat-pct="manualTravel" style="font-size:10px;color:var(--text3);margin-left:6px;"></span></td>
     <td class="val-out" style="font-weight:700;background:#f5e0de!important;" id="manualTravelYearTotalCell">${manualTravel ? manualTravel.toLocaleString('ja-JP') : ''}</td>`;
   months.forEach(ym => {
     const val = getPlanManual(`manualTravel_${ym}`);
@@ -3145,7 +3171,7 @@ async function renderPlan() {
   // その他(手動)
   const manualOther = months.reduce((s, ym) => s + getPlanManual(`manualOther_${ym}`), 0);
   html += `<tr style="background:#fdf0ef!important;">
-    <td style="padding-left:20px;font-weight:600;color:var(--red);">✏️ その他（手動）</td>
+    <td style="padding-left:20px;font-weight:600;color:var(--red);">✏️ その他（手動）<span class="out-pct-label" data-cat-pct="manualOther" style="font-size:10px;color:var(--text3);margin-left:6px;"></span></td>
     <td class="val-out" style="font-weight:700;background:#f5e0de!important;" id="manualOtherYearTotalCell">${manualOther ? manualOther.toLocaleString('ja-JP') : ''}</td>`;
   months.forEach(ym => {
     const val = getPlanManual(`manualOther_${ym}`);
@@ -3300,6 +3326,8 @@ async function renderPlan() {
 
   html += '</tbody></table>';
   document.getElementById('planTableWrap').innerHTML = html;
+  // 初期表示時も%をリアルタイム反映
+  refreshPlanTotals();
 }
 
 function printPlan() {
