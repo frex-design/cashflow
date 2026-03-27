@@ -245,12 +245,16 @@
 
   /* ===== 印刷スタイル ===== */
   @media print {
-    @page { size: A3 landscape; margin: 10mm; }
+    @page { size: A3 landscape; margin: 0; }
     body * { visibility: hidden; }
     #printArea, #printArea * { visibility: visible; }
-    #printArea { position: fixed; top: 0; left: 0; width: 100%; }
-    #printArea table { font-size: 9px; }
-    #printArea th, #printArea td { padding: 3px 5px; border: 1px solid #ccc; }
+    #printArea {
+      position: fixed; top: 0; left: 0;
+      width: 420mm; height: 297mm;
+      overflow: hidden;
+      padding: 6mm;
+      box-sizing: border-box;
+    }
     #printArea td:first-child { position: static; }
   }
 
@@ -3331,7 +3335,6 @@ async function renderPlan() {
 }
 
 function printPlan() {
-  // 印刷用の一時divを作成
   let printArea = document.getElementById('printArea');
   if (printArea) printArea.remove();
   printArea = document.createElement('div');
@@ -3340,27 +3343,58 @@ function printPlan() {
   const table = document.getElementById('planTable');
   if (!table) { alert('事業計画データがありません'); return; }
 
+  // タイトル
   const title = document.createElement('div');
-  title.style.cssText = 'font-size:14px;font-weight:700;margin-bottom:8px;font-family:sans-serif;';
+  title.style.cssText = 'font-size:11px;font-weight:700;margin-bottom:4px;font-family:sans-serif;';
   title.textContent = `株式会社フレックスデザイン　事業計画（勘定科目別月次集計）　${new Date().toLocaleDateString('ja-JP')}`;
   printArea.appendChild(title);
 
-  // テーブルをクローンしてスタイルを付与
+  // テーブルをクローン
   const clone = table.cloneNode(true);
-  clone.style.cssText = 'border-collapse:collapse;width:100%;font-size:9px;font-family:sans-serif;';
+
+  // inputをテキストに変換（手動入力値を表示）
+  clone.querySelectorAll('input').forEach(input => {
+    const span = document.createElement('span');
+    span.textContent = input.value ? Number(input.value).toLocaleString('ja-JP') : '';
+    span.style.cssText = 'display:block;text-align:right;font-family:monospace;font-size:inherit;';
+    input.parentNode.replaceChild(span, input);
+  });
+
+  // stickyを解除
   clone.querySelectorAll('th, td').forEach(cell => {
-    cell.style.border = '1px solid #ccc';
-    cell.style.padding = '3px 6px';
+    cell.style.position = 'static';
+    cell.style.border = '1px solid #bbb';
+    cell.style.padding = '2px 4px';
     cell.style.whiteSpace = 'nowrap';
+    cell.style.fontSize = '8px';
+    cell.style.fontFamily = 'sans-serif';
   });
   clone.querySelectorAll('th').forEach(th => {
-    th.style.background = '#f0f0f0';
+    th.style.background = '#e8edf3';
     th.style.textAlign = 'center';
+    th.style.fontWeight = '700';
   });
-  printArea.appendChild(clone);
+  clone.style.cssText = 'border-collapse:collapse;width:100%;table-layout:auto;';
+
+  // ラッパーでscale縮小
+  const wrapper = document.createElement('div');
+  wrapper.style.cssText = 'transform-origin:top left;';
+  wrapper.appendChild(clone);
+  printArea.appendChild(wrapper);
   document.body.appendChild(printArea);
+
+  // A3横の印刷可能幅（420mm - 余白12mm = 408mm）をpxに換算（96dpi基準）
+  const A3_W_PX = (408 / 25.4) * 96;
+  const A3_H_PX = (285 / 25.4) * 96; // 297mm - 余白12mm
+  const tableW = clone.scrollWidth;
+  const tableH = clone.scrollHeight + 30; // タイトル分
+  const scaleX = A3_W_PX / tableW;
+  const scaleY = A3_H_PX / tableH;
+  const scale  = Math.min(scaleX, scaleY, 1); // 拡大はしない
+  wrapper.style.transform = `scale(${scale})`;
+
   window.print();
-  setTimeout(() => printArea.remove(), 1000);
+  setTimeout(() => printArea.remove(), 1500);
 }
 async function switchTab(tab) {
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
