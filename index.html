@@ -2771,14 +2771,17 @@ function refreshPlanTotals() {
   table.querySelectorAll('thead th[data-ym]').forEach(th => months.push(th.dataset.ym));
   if (months.length === 0) return;
 
-  // 月ごとの入金合計・出金合計・収支を更新
+  const fmtNet = n => (n < 0 ? '-' : '+') + '¥' + Math.abs(Math.round(n)).toLocaleString('ja-JP');
+
+  // 月ごとの出金合計・入金合計・収支を更新
   months.forEach(ym => {
-    const simVal = getPlanManual(`sim_${ym}`);
-    const manualOut = getPlanManual(`manualOut_${ym}`);
-    const inTotal = (planManualData[`inTotal_${ym}`] || 0) + simVal;
-    const outTotal = (planManualData[`outTotal_${ym}`] || 0) + manualOut;
+    const simVal     = getPlanManual(`sim_${ym}`);
+    const manualOut  = getPlanManual(`manualOut_${ym}`);
+    const manualTrav = getPlanManual(`manualTravel_${ym}`);
+    const manualOth  = getPlanManual(`manualOther_${ym}`);
+    const inTotal  = (planManualData[`inTotal_${ym}`] || 0) + simVal;
+    const outTotal = (planManualData[`outTotal_${ym}`] || 0) + manualOut + manualTrav + manualOth;
     const net = inTotal - outTotal;
-    const fmtB = v => (v < 0 ? '-' : '+') + '¥' + Math.abs(Math.round(v)).toLocaleString('ja-JP');
 
     const inTotalCell = table.querySelector(`[data-in-total="${ym}"]`);
     if (inTotalCell) inTotalCell.textContent = inTotal === 0 ? '' : inTotal.toLocaleString('ja-JP');
@@ -2788,7 +2791,8 @@ function refreshPlanTotals() {
 
     const netCell = table.querySelector(`[data-net="${ym}"]`);
     if (netCell) {
-      netCell.textContent = net === 0 ? '' : fmtB(net);
+      const pctStr = inTotal ? `\n(${(net/inTotal*100).toFixed(1)}%)` : '';
+      netCell.innerHTML = (net === 0 ? '' : fmtNet(net)) + (inTotal ? `<br><span style="font-size:10px;">${(net/inTotal*100).toFixed(1)}%</span>` : '');
       netCell.className = net >= 0 ? 'val-in' : 'val-out';
       netCell.style.fontWeight = '700';
     }
@@ -2804,15 +2808,28 @@ function refreshPlanTotals() {
   const manualOutYearCell = document.getElementById('manualOutYearTotalCell');
   if (manualOutYearCell) manualOutYearCell.textContent = manualOutYearTotal ? manualOutYearTotal.toLocaleString('ja-JP') : '';
 
-  // 収支年度合計を更新（売上高＋シミュレーション－出金合計）
-  const fmtNet = n => (n < 0 ? '-' : '+') + '¥' + Math.abs(Math.round(n)).toLocaleString('ja-JP');
+  // 旅費交通費手動年度合計を更新
+  const manualTravelYearTotal = months.reduce((s, ym) => s + getPlanManual(`manualTravel_${ym}`), 0);
+  const manualTravelYearCell = document.getElementById('manualTravelYearTotalCell');
+  if (manualTravelYearCell) manualTravelYearCell.textContent = manualTravelYearTotal ? manualTravelYearTotal.toLocaleString('ja-JP') : '';
+
+  // その他手動年度合計を更新
+  const manualOtherYearTotal = months.reduce((s, ym) => s + getPlanManual(`manualOther_${ym}`), 0);
+  const manualOtherYearCell = document.getElementById('manualOtherYearTotalCell');
+  if (manualOtherYearCell) manualOtherYearCell.textContent = manualOtherYearTotal ? manualOtherYearTotal.toLocaleString('ja-JP') : '';
+
+  // 収支年度合計を更新
   let netYearTotal = 0;
+  let inYearForPct = 0;
   months.forEach(ym => {
-    const salesBase = planManualData[`inTotal_${ym}`] || 0; // 売上高のみ記録済み
-    const sim = getPlanManual(`sim_${ym}`);
-    const outBase = planManualData[`outTotal_${ym}`] || 0;
-    const manualOut = getPlanManual(`manualOut_${ym}`);
-    netYearTotal += (salesBase + sim) - (outBase + manualOut);
+    const salesBase  = planManualData[`inTotal_${ym}`] || 0;
+    const sim        = getPlanManual(`sim_${ym}`);
+    const outBase    = planManualData[`outTotal_${ym}`] || 0;
+    const manualOut  = getPlanManual(`manualOut_${ym}`);
+    const manualTrav = getPlanManual(`manualTravel_${ym}`);
+    const manualOth  = getPlanManual(`manualOther_${ym}`);
+    netYearTotal += (salesBase + sim) - (outBase + manualOut + manualTrav + manualOth);
+    inYearForPct += salesBase + sim;
   });
   const netYearCell = document.getElementById('netYearTotalCell');
   if (netYearCell) {
@@ -2820,21 +2837,6 @@ function refreshPlanTotals() {
     netYearCell.className = netYearTotal >= 0 ? 'val-in' : 'val-out';
     netYearCell.style.fontWeight = '700';
   }
-
-  // 月ごとの収支（data-net）も売上高＋シミュレーション基準で更新
-  months.forEach(ym => {
-    const salesBase = planManualData[`inTotal_${ym}`] || 0;
-    const sim = getPlanManual(`sim_${ym}`);
-    const outBase = planManualData[`outTotal_${ym}`] || 0;
-    const manualOut = getPlanManual(`manualOut_${ym}`);
-    const v = (salesBase + sim) - (outBase + manualOut);
-    const netCell = table.querySelector(`[data-net="${ym}"]`);
-    if (netCell) {
-      netCell.textContent = v === 0 ? '' : fmtNet(v);
-      netCell.className = v >= 0 ? 'val-in' : 'val-out';
-      netCell.style.fontWeight = '700';
-    }
-  });
 
   // 入金合計の年度合計を更新
   const inYearTotal = months.reduce((s, ym) => {
@@ -3005,7 +3007,7 @@ function renderPlan() {
     html += '</tr>';
   });
 
-  // 外注加工費(手動)（常に最下位・手動入力）
+  // 外注加工費(手動)
   const manualOutYearTotal = months.reduce((s, ym) => s + getPlanManual(`manualOut_${ym}`), 0);
   html += `<tr style="background:#fdf0ef!important;">
     <td style="padding-left:20px;font-weight:600;color:var(--red);">✏️ 外注加工費（手動）</td>
@@ -3022,14 +3024,50 @@ function renderPlan() {
   });
   html += '</tr>';
 
-  // 出金合計行（借入返済除く・外注加工費手動含む）
+  // 旅費交通費(手動)
+  const manualTravel = months.reduce((s, ym) => s + getPlanManual(`manualTravel_${ym}`), 0);
+  html += `<tr style="background:#fdf0ef!important;">
+    <td style="padding-left:20px;font-weight:600;color:var(--red);">✏️ 旅費交通費（手動）</td>
+    <td class="val-out" style="font-weight:700;background:#f5e0de!important;" id="manualTravelYearTotalCell">${manualTravel ? manualTravel.toLocaleString('ja-JP') : ''}</td>`;
+  months.forEach(ym => {
+    const val = getPlanManual(`manualTravel_${ym}`);
+    html += `<td style="padding:2px 4px;">
+      <input type="text" inputmode="numeric"
+        value="${val || ''}"
+        placeholder="0"
+        onchange="setPlanManual('manualTravel_${ym}', parseInt(this.value)||0)"
+        style="width:100%;border:1px solid var(--border);border-radius:4px;padding:3px 6px;font-size:11px;font-family:var(--mono);text-align:right;background:var(--bg);color:var(--text);outline:none;">
+    </td>`;
+  });
+  html += '</tr>';
+
+  // その他(手動)
+  const manualOther = months.reduce((s, ym) => s + getPlanManual(`manualOther_${ym}`), 0);
+  html += `<tr style="background:#fdf0ef!important;">
+    <td style="padding-left:20px;font-weight:600;color:var(--red);">✏️ その他（手動）</td>
+    <td class="val-out" style="font-weight:700;background:#f5e0de!important;" id="manualOtherYearTotalCell">${manualOther ? manualOther.toLocaleString('ja-JP') : ''}</td>`;
+  months.forEach(ym => {
+    const val = getPlanManual(`manualOther_${ym}`);
+    html += `<td style="padding:2px 4px;">
+      <input type="text" inputmode="numeric"
+        value="${val || ''}"
+        placeholder="0"
+        onchange="setPlanManual('manualOther_${ym}', parseInt(this.value)||0)"
+        style="width:100%;border:1px solid var(--border);border-radius:4px;padding:3px 6px;font-size:11px;font-family:var(--mono);text-align:right;background:var(--bg);color:var(--text);outline:none;">
+    </td>`;
+  });
+  html += '</tr>';
+
+  // 出金合計行（借入返済除く・手動3項目含む）
   let outYearTotal = 0;
   const outTotalCells = months.map(ym => {
     const base = sumAll(ym, 'out')
       - sumCat(ym, '借入金返済(長期)', 'out')
       - sumCat(ym, '借入金返済(短期)', 'out');
-    const manualOut = getPlanManual(`manualOut_${ym}`);
-    const total = base + manualOut;
+    const manualOut    = getPlanManual(`manualOut_${ym}`);
+    const manualTrav   = getPlanManual(`manualTravel_${ym}`);
+    const manualOth    = getPlanManual(`manualOther_${ym}`);
+    const total = base + manualOut + manualTrav + manualOth;
     planManualData[`outTotal_${ym}`] = base;
     outYearTotal += total;
     return `<td class="val-out" style="font-weight:700;" data-out-total="${ym}">${fmtV(total)}</td>`;
@@ -3038,28 +3076,42 @@ function renderPlan() {
 
   // ===== 収支 =====
   const fmtNet = n => (n < 0 ? '-' : '+') + '¥' + Math.abs(Math.round(n)).toLocaleString('ja-JP');
+  const fmtPct = (net, inTotal) => {
+    if (!inTotal) return '';
+    const pct = (net / inTotal * 100).toFixed(1);
+    return `<span style="font-size:11px;margin-left:8px;color:${net>=0?'var(--green)':'var(--red)'};">(利益率 ${pct}%)</span>`;
+  };
   // 収支の年度合計（売上高＋シミュレーション－出金合計）
   let netYearTotal = 0;
+  let inYearForPct = 0;
   months.forEach(ym => {
     const salesAmt = (ym === HIDE_SALES_MONTH) ? 0 : sumCat(ym, '売上高', 'in');
-    const sim = getPlanManual(`sim_${ym}`);
-    const manualOut = getPlanManual(`manualOut_${ym}`);
+    const sim      = getPlanManual(`sim_${ym}`);
+    const manualOut  = getPlanManual(`manualOut_${ym}`);
+    const manualTrav = getPlanManual(`manualTravel_${ym}`);
+    const manualOth  = getPlanManual(`manualOther_${ym}`);
     const outBase = sumAll(ym,'out')
       - sumCat(ym, '借入金返済(長期)', 'out')
       - sumCat(ym, '借入金返済(短期)', 'out');
-    netYearTotal += (salesAmt + sim) - (outBase + manualOut);
+    netYearTotal += (salesAmt + sim) - (outBase + manualOut + manualTrav + manualOth);
+    inYearForPct += salesAmt + sim;
   });
-  html += `<tr class="row-total" style="background:#d0e0f5!important;"><td>収支（入金－出金）</td>`;
+  const yearPct = inYearForPct ? `<span style="font-size:11px;margin-left:8px;color:${netYearTotal>=0?'var(--green)':'var(--red)'};">(利益率 ${(netYearTotal/inYearForPct*100).toFixed(1)}%)</span>` : '';
+  html += `<tr class="row-total" style="background:#d0e0f5!important;"><td>収支（入金－出金）${yearPct}</td>`;
   html += `<td class="${netYearTotal>=0?'val-in':'val-out'}" style="font-weight:700;" id="netYearTotalCell">${netYearTotal===0?'':fmtNet(netYearTotal)}</td>`;
   months.forEach(ym => {
     const salesAmt = (ym === HIDE_SALES_MONTH) ? 0 : sumCat(ym, '売上高', 'in');
-    const sim = getPlanManual(`sim_${ym}`);
-    const manualOut = getPlanManual(`manualOut_${ym}`);
+    const sim      = getPlanManual(`sim_${ym}`);
+    const manualOut  = getPlanManual(`manualOut_${ym}`);
+    const manualTrav = getPlanManual(`manualTravel_${ym}`);
+    const manualOth  = getPlanManual(`manualOther_${ym}`);
     const outBase = sumAll(ym,'out')
       - sumCat(ym, '借入金返済(長期)', 'out')
       - sumCat(ym, '借入金返済(短期)', 'out');
-    const v = (salesAmt + sim) - (outBase + manualOut);
-    html += `<td class="${v>=0?'val-in':'val-out'}" style="font-weight:700;" data-net="${ym}">${v===0?'':fmtNet(v)}</td>`;
+    const v = (salesAmt + sim) - (outBase + manualOut + manualTrav + manualOth);
+    const inAmt = salesAmt + sim;
+    const pctStr = inAmt ? `<br><span style="font-size:10px;">${(v/inAmt*100).toFixed(1)}%</span>` : '';
+    html += `<td class="${v>=0?'val-in':'val-out'}" style="font-weight:700;" data-net="${ym}">${v===0?'':fmtNet(v)}${pctStr}</td>`;
   });
   html += '</tr>';
 
