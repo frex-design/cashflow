@@ -668,6 +668,17 @@
           </div>
         </div>
       </div>
+      <!-- 入出金合計サマリー -->
+      <div id="dailySummaryBar" style="display:flex;gap:32px;align-items:flex-end;margin-bottom:10px;padding:8px 14px;background:var(--bg2);border:1px solid var(--border);border-radius:7px;">
+        <div style="text-align:center;">
+          <div id="summaryInAmt" style="font-family:var(--mono);font-size:18px;font-weight:700;color:var(--green);">¥0</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:2px;">入金（円）</div>
+        </div>
+        <div style="text-align:center;">
+          <div id="summaryOutAmt" style="font-family:var(--mono);font-size:18px;font-weight:700;color:var(--red);">¥0</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:2px;">出金（円）</div>
+        </div>
+      </div>
       <div class="table-wrap">
         <table>
           <thead>
@@ -1630,6 +1641,8 @@ function renderDailyTable() {
 
   if (filtered.length === 0) {
     document.getElementById('dailyTableBody').innerHTML = `<tr><td colspan="12" class="empty-state">データがありません。入出金を登録してください。</td></tr>`;
+    document.getElementById('summaryInAmt').textContent  = '¥0';
+    document.getElementById('summaryOutAmt').textContent = '¥0';
     return;
   }
 
@@ -1729,6 +1742,13 @@ function renderDailyTable() {
 
   document.getElementById('dailyTableBody').innerHTML = rows.join('');
   initDragDrop();
+
+  // 表示中データの入金・出金合計を集計してサマリーバーに反映
+  const totalIn  = filtered.filter(e => e.type === 'in').reduce((s,e) => s + e.amount, 0);
+  const totalOut = filtered.filter(e => e.type === 'out').reduce((s,e) => s + e.amount, 0);
+  const fmtS = v => '¥' + Math.round(v).toLocaleString('ja-JP');
+  document.getElementById('summaryInAmt').textContent  = fmtS(totalIn);
+  document.getElementById('summaryOutAmt').textContent = fmtS(totalOut);
 }
 
 // ===== DRAG AND DROP =====
