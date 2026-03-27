@@ -1093,6 +1093,13 @@ function startRealtimeSync() {
       if (document.getElementById('panel-daily').classList.contains('active')) renderDailyTable();
       if (document.getElementById('panel-chart').classList.contains('active')) renderCharts();
     }
+    // 事業計画の手動入力値も同期
+    const planData = await sbFetch('/rest/v1/plan_manual?select=key,value');
+    if (planData && Array.isArray(planData)) {
+      planData.forEach(r => { planManualData[r.key] = Number(r.value); });
+      localStorage.setItem('fd_plan_manual', JSON.stringify(planManualData));
+      if (document.getElementById('panel-plan').classList.contains('active')) refreshPlanTotals();
+    }
   }, 30000);
 }
 // ===== 横手帳簿への自動送信 =====
@@ -2727,18 +2734,29 @@ function renderMonthly() {
 let planManualData = {};
 let planFiscalYear = null; // 表示中の年度（4月始まりの開始年 例:2026なら2026年4月〜2027年3月）
 
-function loadPlanManual() {
-  const d = localStorage.getItem('fd_plan_manual');
-  if (d) planManualData = JSON.parse(d);
+async function loadPlanManual() {
+  // まずlocalStorageから読み込み（表示速度優先）
+  const local = localStorage.getItem('fd_plan_manual');
+  if (local) planManualData = JSON.parse(local);
+  // Supabaseから最新を取得
+  const data = await sbFetch('/rest/v1/plan_manual?select=key,value');
+  if (data && Array.isArray(data)) {
+    data.forEach(r => { planManualData[r.key] = Number(r.value); });
+    localStorage.setItem('fd_plan_manual', JSON.stringify(planManualData));
+  }
 }
-function savePlanManual() {
+
+async function savePlanManual(key, val) {
   localStorage.setItem('fd_plan_manual', JSON.stringify(planManualData));
+  await sbFetch('/rest/v1/plan_manual?on_conflict=key', 'POST', [{ key, value: val }]);
 }
-function setPlanManual(key, val) {
+
+async function setPlanManual(key, val) {
   planManualData[key] = val;
-  savePlanManual();
+  await savePlanManual(key, val);
   refreshPlanTotals();
 }
+
 function getPlanManual(key) {
   return planManualData[key] || 0;
 }
@@ -2857,8 +2875,8 @@ function refreshPlanTotals() {
   }, 0);
 }
 
-function renderPlan() {
-  loadPlanManual();
+async function renderPlan() {
+  await loadPlanManual();
 
   // 年度初期値：データがある最初の年度（4月始まり）
   if (planFiscalYear === null) {
@@ -3231,7 +3249,7 @@ function printPlan() {
   window.print();
   setTimeout(() => printArea.remove(), 1000);
 }
-function switchTab(tab) {
+async function switchTab(tab) {
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
   const tabs = ['daily','chart','compare','monthly','plan'];
@@ -3240,7 +3258,7 @@ function switchTab(tab) {
   if (tab==='chart') renderCharts();
   if (tab==='compare') renderSales();
   if (tab==='monthly') renderMonthly();
-  if (tab==='plan') renderPlan();
+  if (tab==='plan') await renderPlan();
 }
 
 // ===== CSV EXPORT MODAL =====
