@@ -668,17 +668,6 @@
           </div>
         </div>
       </div>
-      <!-- 入出金合計サマリー -->
-      <div id="dailySummaryBar" style="display:flex;gap:32px;align-items:flex-end;margin-bottom:10px;padding:8px 14px;background:var(--bg2);border:1px solid var(--border);border-radius:7px;">
-        <div style="text-align:center;">
-          <div id="summaryInAmt" style="font-family:var(--mono);font-size:18px;font-weight:700;color:var(--green);">¥0</div>
-          <div style="font-size:11px;color:var(--text3);margin-top:2px;">入金（円）</div>
-        </div>
-        <div style="text-align:center;">
-          <div id="summaryOutAmt" style="font-family:var(--mono);font-size:18px;font-weight:700;color:var(--red);">¥0</div>
-          <div style="font-size:11px;color:var(--text3);margin-top:2px;">出金（円）</div>
-        </div>
-      </div>
       <div class="table-wrap">
         <table>
           <thead>
@@ -698,6 +687,14 @@
             </tr>
           </thead>
           <tbody id="dailyTableBody"></tbody>
+          <tfoot id="dailyTableFoot">
+            <tr style="background:var(--bg3);border-top:2px solid var(--border);">
+              <td colspan="7" style="font-size:13px;font-weight:600;color:var(--text2);padding:6px 10px;">合計</td>
+              <td id="summaryInAmt"  class="mono text-right pos-val" style="font-size:13px;font-weight:700;padding:6px 8px;"></td>
+              <td id="summaryOutAmt" class="mono text-right neg-val" style="font-size:13px;font-weight:700;padding:6px 8px;"></td>
+              <td colspan="3"></td>
+            </tr>
+          </tfoot>
         </table>
       </div>
     </div>
