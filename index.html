@@ -208,6 +208,52 @@
   tr.dragging { opacity: 0.3; background: rgba(37,99,235,0.05) !important; }
   tr.drag-over td { border-top: 2px solid var(--accent) !important; }
 
+  /* ===== 事業計画テーブル ===== */
+  #planTableWrap table { border-collapse: collapse; width: 100%; font-size: 12px; }
+  #planTableWrap th, #planTableWrap td { border: 1px solid var(--border); padding: 5px 8px; white-space: nowrap; }
+  #planTableWrap th { background: #f0f4f8; font-weight: 600; text-align: center; color: var(--text2); }
+  /* sticky: 勘定科目列 */
+  #planTableWrap td:first-child { background: #ffffff; font-weight: 500; color: var(--text); min-width: 160px; position: sticky; left: 0; z-index: 3; border-right: 1px solid #c8d4e0; }
+  #planTableWrap th:first-child { position: sticky; left: 0; z-index: 4; background: #e8edf3; border-right: 1px solid #c8d4e0; }
+  /* sticky: 年度合計列 */
+  #planTableWrap th:nth-child(2) { position: sticky; left: 161px; z-index: 4; background: #dce8f7; border-right: 1px solid #c8d4e0; }
+  #planTableWrap td:nth-child(2) { position: sticky; left: 161px; z-index: 3; background: #f0f6ff; min-width: 110px; border-right: 1px solid #c8d4e0; }
+  /* hover */
+  #planTableWrap tr:hover td { background: #f4f7fb; }
+  #planTableWrap tr:hover td:first-child { background: #e8edf3 !important; }
+  #planTableWrap tr:hover td:nth-child(2) { background: #e4eef9 !important; }
+  /* セクション行 */
+  #planTableWrap .row-section td { background: #e8edf3 !important; font-weight: 700; color: var(--accent); font-size: 11px; letter-spacing: 0.5px; }
+  #planTableWrap .row-section td:first-child { background: #e8edf3 !important; }
+  #planTableWrap .row-section td:nth-child(2) { background: #e8edf3 !important; }
+  /* 合計行 */
+  #planTableWrap .row-total td { background: #dce8f7 !important; font-weight: 700; border-top: 2px solid var(--accent); }
+  #planTableWrap .row-total td:first-child { background: #dce8f7 !important; }
+  #planTableWrap .row-total td:nth-child(2) { background: #ccdaf2 !important; }
+  /* 口座残高行 */
+  #planTableWrap .row-account td { background: #eaf7ef !important; }
+  #planTableWrap .row-account td:first-child { background: #e0f4e8 !important; }
+  #planTableWrap .row-account td:nth-child(2) { background: #e0f4e8 !important; }
+  /* 口座残高合計行 */
+  #planTableWrap .row-account-total td { background: #d0edda !important; font-weight: 700; border-top: 2px solid var(--green); }
+  #planTableWrap .row-account-total td:first-child { background: #d0edda !important; }
+  #planTableWrap .row-account-total td:nth-child(2) { background: #c2e8ce !important; }
+  #planTableWrap .val-in { color: var(--green); font-family: var(--mono); text-align: right; }
+  #planTableWrap .val-out { color: var(--red); font-family: var(--mono); text-align: right; }
+  #planTableWrap .val-bal { font-family: var(--mono); text-align: right; font-weight: 500; }
+  #planTableWrap .val-neg { color: var(--red); }
+
+  /* ===== 印刷スタイル ===== */
+  @media print {
+    @page { size: A3 landscape; margin: 10mm; }
+    body * { visibility: hidden; }
+    #printArea, #printArea * { visibility: visible; }
+    #printArea { position: fixed; top: 0; left: 0; width: 100%; }
+    #printArea table { font-size: 9px; }
+    #printArea th, #printArea td { padding: 3px 5px; border: 1px solid #ccc; }
+    #printArea td:first-child { position: static; }
+  }
+
   /* ===== MISC ===== */
   .empty-state { text-align: center; padding: 40px; color: var(--text3); font-size: 13px; }
   .tag-plan { color: var(--accent); }
@@ -400,6 +446,7 @@
       <button class="tab" onclick="switchTab('chart')">残高推移グラフ</button>
       <button class="tab" onclick="switchTab('compare')">売上高一覧</button>
       <button class="tab" onclick="switchTab('monthly')">月次集計</button>
+      <button class="tab" onclick="switchTab('plan')">事業計画</button>
     </div>
 
     <!-- ===== DAILY TAB ===== -->
@@ -749,6 +796,25 @@
           <tbody id="monthlyTableBody"></tbody>
         </table>
       </div>
+    </div>
+
+    <!-- ===== 事業計画 TAB ===== -->
+    <div class="panel" id="panel-plan">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:8px;">
+        <div style="display:flex; align-items:center; gap:12px;">
+          <div style="font-size:15px; font-weight:600; color:var(--text);">事業計画 — 勘定科目別月次集計</div>
+          <!-- 年度切り替えナビ -->
+          <div style="display:flex;align-items:center;gap:0;border:1px solid var(--border);border-radius:6px;overflow:hidden;background:var(--bg2);">
+            <button onclick="shiftPlanYear(-1)" style="border:none;background:transparent;color:var(--text2);font-size:18px;padding:4px 10px;cursor:pointer;line-height:1;" title="前年度">&#8249;</button>
+            <span id="planYearLabel" style="font-size:14px;font-weight:600;color:var(--text);padding:4px 14px;min-width:120px;text-align:center;"></span>
+            <button onclick="shiftPlanYear(1)" style="border:none;background:transparent;color:var(--text2);font-size:18px;padding:4px 10px;cursor:pointer;line-height:1;" title="次年度">&#8250;</button>
+          </div>
+        </div>
+        <button onclick="printPlan()" style="display:flex;align-items:center;gap:6px;padding:8px 18px;background:var(--accent);color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;font-family:var(--sans);">
+          🖨️ 印刷（A3横）
+        </button>
+      </div>
+      <div id="planTableWrap" style="overflow-x:auto;"></div>
     </div>
 
   </div><!-- /content -->
@@ -2656,16 +2722,473 @@ function renderMonthly() {
     <div class="month-card"><div class="month-card-label">今月 収支</div><div class="month-card-value" style="color:${cIn-cOut>=0?'var(--green)':'var(--red)'}">${fmtDiff(cIn-cOut)}</div></div>`;
 }
 
-// ===== TAB SWITCH =====
+// ===== 事業計画 =====
+// 事業計画の手動入力値を保持（localStorage）
+let planManualData = {};
+let planFiscalYear = null; // 表示中の年度（4月始まりの開始年 例:2026なら2026年4月〜2027年3月）
+
+function loadPlanManual() {
+  const d = localStorage.getItem('fd_plan_manual');
+  if (d) planManualData = JSON.parse(d);
+}
+function savePlanManual() {
+  localStorage.setItem('fd_plan_manual', JSON.stringify(planManualData));
+}
+function setPlanManual(key, val) {
+  planManualData[key] = val;
+  savePlanManual();
+  refreshPlanTotals();
+}
+function getPlanManual(key) {
+  return planManualData[key] || 0;
+}
+
+// 年度を±1する
+function shiftPlanYear(delta) {
+  planFiscalYear += delta;
+  renderPlan();
+}
+
+// 年度から12ヶ月リストを生成（4月〜翌3月）
+function getFiscalMonths(fy) {
+  const months = [];
+  for (let i = 0; i < 12; i++) {
+    const month = (i + 3) % 12 + 1; // 4,5,...,12,1,2,3
+    const year  = i < 9 ? fy : fy + 1;
+    months.push(`${year}-${String(month).padStart(2,'0')}`);
+  }
+  return months;
+}
+
+function refreshPlanTotals() {
+  const wrap = document.getElementById('planTableWrap');
+  if (!wrap) return;
+  const table = wrap.querySelector('#planTable');
+  if (!table) return;
+
+  // 月リストを取得（data-ym属性がある列のみ）
+  const months = [];
+  table.querySelectorAll('thead th[data-ym]').forEach(th => months.push(th.dataset.ym));
+  if (months.length === 0) return;
+
+  // 月ごとの入金合計・出金合計・収支を更新
+  months.forEach(ym => {
+    const simVal = getPlanManual(`sim_${ym}`);
+    const manualOut = getPlanManual(`manualOut_${ym}`);
+    const inTotal = (planManualData[`inTotal_${ym}`] || 0) + simVal;
+    const outTotal = (planManualData[`outTotal_${ym}`] || 0) + manualOut;
+    const net = inTotal - outTotal;
+    const fmtB = v => (v < 0 ? '-' : '+') + '¥' + Math.abs(Math.round(v)).toLocaleString('ja-JP');
+
+    const inTotalCell = table.querySelector(`[data-in-total="${ym}"]`);
+    if (inTotalCell) inTotalCell.textContent = inTotal === 0 ? '' : inTotal.toLocaleString('ja-JP');
+
+    const outTotalCell = table.querySelector(`[data-out-total="${ym}"]`);
+    if (outTotalCell) outTotalCell.textContent = outTotal === 0 ? '' : outTotal.toLocaleString('ja-JP');
+
+    const netCell = table.querySelector(`[data-net="${ym}"]`);
+    if (netCell) {
+      netCell.textContent = net === 0 ? '' : fmtB(net);
+      netCell.className = net >= 0 ? 'val-in' : 'val-out';
+      netCell.style.fontWeight = '700';
+    }
+  });
+
+  // シミュレーション年度合計を更新
+  const simYearTotal = months.reduce((s, ym) => s + getPlanManual(`sim_${ym}`), 0);
+  const simYearCell = document.getElementById('simYearTotalCell');
+  if (simYearCell) simYearCell.textContent = simYearTotal ? simYearTotal.toLocaleString('ja-JP') : '';
+
+  // 外注加工費手動年度合計を更新
+  const manualOutYearTotal = months.reduce((s, ym) => s + getPlanManual(`manualOut_${ym}`), 0);
+  const manualOutYearCell = document.getElementById('manualOutYearTotalCell');
+  if (manualOutYearCell) manualOutYearCell.textContent = manualOutYearTotal ? manualOutYearTotal.toLocaleString('ja-JP') : '';
+
+  // 収支年度合計を更新（売上高＋シミュレーション－出金合計）
+  const fmtNet = n => (n < 0 ? '-' : '+') + '¥' + Math.abs(Math.round(n)).toLocaleString('ja-JP');
+  let netYearTotal = 0;
+  months.forEach(ym => {
+    const salesBase = planManualData[`inTotal_${ym}`] || 0; // 売上高のみ記録済み
+    const sim = getPlanManual(`sim_${ym}`);
+    const outBase = planManualData[`outTotal_${ym}`] || 0;
+    const manualOut = getPlanManual(`manualOut_${ym}`);
+    netYearTotal += (salesBase + sim) - (outBase + manualOut);
+  });
+  const netYearCell = document.getElementById('netYearTotalCell');
+  if (netYearCell) {
+    netYearCell.textContent = netYearTotal === 0 ? '' : fmtNet(netYearTotal);
+    netYearCell.className = netYearTotal >= 0 ? 'val-in' : 'val-out';
+    netYearCell.style.fontWeight = '700';
+  }
+
+  // 月ごとの収支（data-net）も売上高＋シミュレーション基準で更新
+  months.forEach(ym => {
+    const salesBase = planManualData[`inTotal_${ym}`] || 0;
+    const sim = getPlanManual(`sim_${ym}`);
+    const outBase = planManualData[`outTotal_${ym}`] || 0;
+    const manualOut = getPlanManual(`manualOut_${ym}`);
+    const v = (salesBase + sim) - (outBase + manualOut);
+    const netCell = table.querySelector(`[data-net="${ym}"]`);
+    if (netCell) {
+      netCell.textContent = v === 0 ? '' : fmtNet(v);
+      netCell.className = v >= 0 ? 'val-in' : 'val-out';
+      netCell.style.fontWeight = '700';
+    }
+  });
+
+  // 入金合計の年度合計を更新
+  const inYearTotal = months.reduce((s, ym) => {
+    const base = planManualData[`inTotal_${ym}`] || 0;
+    return s + base + getPlanManual(`sim_${ym}`);
+  }, 0);
+  const inYearCell = table.querySelector('.row-total [data-in-year-total]') ||
+    (() => {
+      const cell = table.querySelector('tr.row-total td:nth-child(2)');
+      // 入金合計行かどうか判定（最初のrow-total）
+      return cell;
+    })();
+
+  // 出金合計の年度合計を更新
+  const outYearTotal = months.reduce((s, ym) => {
+    const base = planManualData[`outTotal_${ym}`] || 0;
+    return s + base + getPlanManual(`manualOut_${ym}`);
+  }, 0);
+}
+
+function renderPlan() {
+  loadPlanManual();
+
+  // 年度初期値：データがある最初の年度（4月始まり）
+  if (planFiscalYear === null) {
+    const allMonths = entries.map(e => e.date.slice(0,7)).sort();
+    if (allMonths.length === 0) {
+      document.getElementById('planTableWrap').innerHTML = '<div style="text-align:center;padding:40px;color:var(--text3);">データがありません</div>';
+      return;
+    }
+    // 最初のデータがある月から年度を決定（4月以降なら同年、1-3月なら前年が年度開始）
+    const firstYm = allMonths[0];
+    const [fy, fm] = firstYm.split('-').map(Number);
+    planFiscalYear = fm >= 4 ? fy : fy - 1;
+  }
+
+  // 表示する12ヶ月（選択年度の4月〜翌3月）
+  const allFiscalMonths = getFiscalMonths(planFiscalYear);
+
+  // 年度ラベルを更新
+  document.getElementById('planYearLabel').textContent = `${planFiscalYear}年度（${planFiscalYear}年4月〜${planFiscalYear+1}年3月）`;
+
+  // 実際にデータがある月のみ使う（ただし枠は全12ヶ月表示）
+  const months = allFiscalMonths; // 全12ヶ月表示（データなし月は空欄）
+
+  // 勘定科目一覧（選択年度のエントリから収集、2026-03除外）
+  const catSet = new Set();
+  entries.filter(e => {
+    const ym = e.date.slice(0,7);
+    return e.status === 'confirmed' && months.includes(ym) && ym !== '2026-03';
+  }).forEach(e => { if (e.category) catSet.add(e.category); });
+  // 全エントリからも科目収集（他年度にあって今年度にない科目も表示）
+  entries.filter(e => e.status === 'confirmed').forEach(e => { if (e.category) catSet.add(e.category); });
+  const allCats = Array.from(catSet).sort();
+
+  // 借入返済セクションに移動する科目
+  const BORROW_CATS_IN  = ['借入金(短期)'];
+  const BORROW_CATS_OUT = ['借入金返済(短期)', '借入金返済(長期)'];
+
+  const inOnlyCats  = allCats.filter(c =>
+    !BORROW_CATS_IN.includes(c) &&
+    entries.some(e => e.status==='confirmed' && e.category===c && e.type==='in' && !e.date.startsWith('2026-03'))
+  );
+  const outOnlyCats = allCats.filter(c =>
+    !BORROW_CATS_OUT.includes(c) &&
+    entries.some(e => e.status==='confirmed' && e.category===c && e.type==='out' && !e.date.startsWith('2026-03'))
+  );
+
+  // 売上高を非表示にする月（2026-04）
+  const HIDE_SALES_MONTH = '2026-04';
+
+  // 月ごと科目別集計
+  function sumCat(ym, cat, type) {
+    return entries
+      .filter(e => e.date.startsWith(ym) && e.status==='confirmed' && e.category===cat && e.type===type)
+      .reduce((s,e) => s+e.amount, 0);
+  }
+  function sumAll(ym, type) {
+    return entries
+      .filter(e => e.date.startsWith(ym) && e.status==='confirmed' && e.type===type && !e.isTransfer)
+      .reduce((s,e) => s+e.amount, 0);
+  }
+
+  const fmtV = v => v === 0 ? '' : v.toLocaleString('ja-JP');
+  const fmtB = v => (v < 0 ? '-' : '') + '¥' + Math.abs(Math.round(v)).toLocaleString('ja-JP');
+
+  // 月ごとの入金合計・出金合計をplanManualDataに記録（再計算用）
+  months.forEach(ym => {
+    planManualData[`inTotal_${ym}`] = sumAll(ym, 'in');
+    planManualData[`outTotal_${ym}`] = sumAll(ym, 'out');
+  });
+
+  let html = `<table id="planTable">
+    <thead>
+      <tr>
+        <th style="min-width:170px;">勘定科目</th>
+        <th style="min-width:110px;background:#dce8f7!important;color:var(--accent);">年度合計</th>
+        ${months.map(m => {
+          const [y,mo] = m.split('-');
+          return `<th style="min-width:100px;" data-ym="${m}">${y}年${parseInt(mo)}月</th>`;
+        }).join('')}
+      </tr>
+    </thead>
+    <tbody>`;
+
+  // ===== 入金セクション =====
+  html += `<tr class="row-section"><td>▼ 入金</td><td></td>${months.map(()=>'<td></td>').join('')}</tr>`;
+
+  // シミュレーション（常に最上位・手動入力）
+  html += `<tr style="background:#e8f1fb!important;">
+    <td style="padding-left:20px;font-weight:600;color:var(--accent);">📊 シミュレーション</td>`;
+  // 年度合計（シミュレーション）
+  const simYearTotal = months.reduce((s,ym) => s + getPlanManual(`sim_${ym}`), 0);
+  html += `<td class="val-in" style="font-weight:700;background:#dce8f7!important;" id="simYearTotalCell">${simYearTotal ? simYearTotal.toLocaleString('ja-JP') : ''}</td>`;
+  months.forEach(ym => {
+    const val = getPlanManual(`sim_${ym}`);
+    html += `<td style="padding:2px 4px;">
+      <input type="text" inputmode="numeric"
+        value="${val || ''}"
+        placeholder="0"
+        onchange="setPlanManual('sim_${ym}', parseInt(this.value)||0)"
+        style="width:100%;border:1px solid var(--border);border-radius:4px;padding:3px 6px;font-size:11px;font-family:var(--mono);text-align:right;background:var(--bg);color:var(--text);outline:none;">
+    </td>`;
+  });
+  html += '</tr>';
+
+  // 通常の入金科目（2026-04の売上高は数字を非表示）
+  inOnlyCats.forEach(cat => {
+    html += `<tr><td style="padding-left:20px;">${cat}</td>`;
+    // 年度合計
+    const yearTotal = months.reduce((s, ym) => {
+      const isSalesHide = (ym === HIDE_SALES_MONTH && cat === '売上高');
+      return s + (isSalesHide ? 0 : sumCat(ym, cat, 'in'));
+    }, 0);
+    html += `<td class="val-in" style="background:#eef4fc!important;">${fmtV(yearTotal)}</td>`;
+    months.forEach(ym => {
+      const isSalesHide = (ym === HIDE_SALES_MONTH && cat === '売上高');
+      const v = isSalesHide ? 0 : sumCat(ym, cat, 'in');
+      html += `<td class="val-in">${isSalesHide ? '' : fmtV(v)}</td>`;
+    });
+    html += '</tr>';
+  });
+
+  // 入金合計行（売上高＋シミュレーションのみ）
+  let inYearTotal = 0;
+  const inTotalCells = months.map(ym => {
+    // 売上高のみ（2026-04は非表示のため0）
+    const salesAmt = (ym === HIDE_SALES_MONTH) ? 0 : sumCat(ym, '売上高', 'in');
+    const sim = getPlanManual(`sim_${ym}`);
+    const total = salesAmt + sim;
+    planManualData[`inTotal_${ym}`] = salesAmt; // シミュレーション除いた値を記録
+    inYearTotal += total;
+    return `<td class="val-in" style="font-weight:700;" data-in-total="${ym}">${fmtV(total)}</td>`;
+  }).join('');
+  html += `<tr class="row-total"><td>入金合計</td><td class="val-in" style="font-weight:700;background:#c8dbf3!important;">${fmtV(inYearTotal)}</td>${inTotalCells}</tr>`;
+
+  // ===== 出金セクション =====
+  html += `<tr class="row-section"><td>▼ 出金</td><td></td>${months.map(()=>'<td></td>').join('')}</tr>`;
+  outOnlyCats.forEach(cat => {
+    html += `<tr><td style="padding-left:20px;">${cat}</td>`;
+    // 年度合計
+    const yearTotal = months.reduce((s, ym) => s + sumCat(ym, cat, 'out'), 0);
+    html += `<td class="val-out" style="background:#fdf0ef!important;">${fmtV(yearTotal)}</td>`;
+    months.forEach(ym => {
+      const v = sumCat(ym, cat, 'out');
+      html += `<td class="val-out">${fmtV(v)}</td>`;
+    });
+    html += '</tr>';
+  });
+
+  // 外注加工費(手動)（常に最下位・手動入力）
+  const manualOutYearTotal = months.reduce((s, ym) => s + getPlanManual(`manualOut_${ym}`), 0);
+  html += `<tr style="background:#fdf0ef!important;">
+    <td style="padding-left:20px;font-weight:600;color:var(--red);">✏️ 外注加工費（手動）</td>
+    <td class="val-out" style="font-weight:700;background:#f5e0de!important;" id="manualOutYearTotalCell">${manualOutYearTotal ? manualOutYearTotal.toLocaleString('ja-JP') : ''}</td>`;
+  months.forEach(ym => {
+    const val = getPlanManual(`manualOut_${ym}`);
+    html += `<td style="padding:2px 4px;">
+      <input type="text" inputmode="numeric"
+        value="${val || ''}"
+        placeholder="0"
+        onchange="setPlanManual('manualOut_${ym}', parseInt(this.value)||0)"
+        style="width:100%;border:1px solid var(--border);border-radius:4px;padding:3px 6px;font-size:11px;font-family:var(--mono);text-align:right;background:var(--bg);color:var(--text);outline:none;">
+    </td>`;
+  });
+  html += '</tr>';
+
+  // 出金合計行（借入返済除く・外注加工費手動含む）
+  let outYearTotal = 0;
+  const outTotalCells = months.map(ym => {
+    const base = sumAll(ym, 'out')
+      - sumCat(ym, '借入金返済(長期)', 'out')
+      - sumCat(ym, '借入金返済(短期)', 'out');
+    const manualOut = getPlanManual(`manualOut_${ym}`);
+    const total = base + manualOut;
+    planManualData[`outTotal_${ym}`] = base;
+    outYearTotal += total;
+    return `<td class="val-out" style="font-weight:700;" data-out-total="${ym}">${fmtV(total)}</td>`;
+  }).join('');
+  html += `<tr class="row-total"><td>出金合計</td><td class="val-out" style="font-weight:700;background:#c8dbf3!important;">${fmtV(outYearTotal)}</td>${outTotalCells}</tr>`;
+
+  // ===== 収支 =====
+  const fmtNet = n => (n < 0 ? '-' : '+') + '¥' + Math.abs(Math.round(n)).toLocaleString('ja-JP');
+  // 収支の年度合計（売上高＋シミュレーション－出金合計）
+  let netYearTotal = 0;
+  months.forEach(ym => {
+    const salesAmt = (ym === HIDE_SALES_MONTH) ? 0 : sumCat(ym, '売上高', 'in');
+    const sim = getPlanManual(`sim_${ym}`);
+    const manualOut = getPlanManual(`manualOut_${ym}`);
+    const outBase = sumAll(ym,'out')
+      - sumCat(ym, '借入金返済(長期)', 'out')
+      - sumCat(ym, '借入金返済(短期)', 'out');
+    netYearTotal += (salesAmt + sim) - (outBase + manualOut);
+  });
+  html += `<tr class="row-total" style="background:#d0e0f5!important;"><td>収支（入金－出金）</td>`;
+  html += `<td class="${netYearTotal>=0?'val-in':'val-out'}" style="font-weight:700;" id="netYearTotalCell">${netYearTotal===0?'':fmtNet(netYearTotal)}</td>`;
+  months.forEach(ym => {
+    const salesAmt = (ym === HIDE_SALES_MONTH) ? 0 : sumCat(ym, '売上高', 'in');
+    const sim = getPlanManual(`sim_${ym}`);
+    const manualOut = getPlanManual(`manualOut_${ym}`);
+    const outBase = sumAll(ym,'out')
+      - sumCat(ym, '借入金返済(長期)', 'out')
+      - sumCat(ym, '借入金返済(短期)', 'out');
+    const v = (salesAmt + sim) - (outBase + manualOut);
+    html += `<td class="${v>=0?'val-in':'val-out'}" style="font-weight:700;" data-net="${ym}">${v===0?'':fmtNet(v)}</td>`;
+  });
+  html += '</tr>';
+
+  // ===== 借入返済セクション =====
+  const hasBorrowData =
+    [...BORROW_CATS_IN, ...BORROW_CATS_OUT].some(cat =>
+      entries.some(e => e.status==='confirmed' && e.category===cat)
+    );
+  if (hasBorrowData) {
+    html += `<tr class="row-section" style="background:#ecdff2!important;"><td style="color:#8e44ad;">▼ 借入返済</td><td></td>${months.map(()=>'<td></td>').join('')}</tr>`;
+
+    // 入金側（借入金(短期)）
+    BORROW_CATS_IN.forEach(cat => {
+      const yearTotal = months.reduce((s, ym) => s + sumCat(ym, cat, 'in'), 0);
+      if (yearTotal === 0 && !entries.some(e => e.category === cat)) return;
+      html += `<tr><td style="padding-left:20px;">${cat}</td>`;
+      html += `<td class="val-in" style="background:#f5eff8!important;">${fmtV(yearTotal)}</td>`;
+      months.forEach(ym => {
+        const v = sumCat(ym, cat, 'in');
+        html += `<td class="val-in">${fmtV(v)}</td>`;
+      });
+      html += '</tr>';
+    });
+
+    // 出金側（借入金返済(短期)・借入金返済(長期)）
+    BORROW_CATS_OUT.forEach(cat => {
+      const yearTotal = months.reduce((s, ym) => s + sumCat(ym, cat, 'out'), 0);
+      if (yearTotal === 0 && !entries.some(e => e.category === cat)) return;
+      html += `<tr><td style="padding-left:20px;">${cat}</td>`;
+      html += `<td class="val-out" style="background:#f5eff8!important;">${fmtV(yearTotal)}</td>`;
+      months.forEach(ym => {
+        const v = sumCat(ym, cat, 'out');
+        html += `<td class="val-out">${fmtV(v)}</td>`;
+      });
+      html += '</tr>';
+    });
+
+    // 借入返済 差引
+    const borrowYearNet = months.reduce((s, ym) => {
+      const inV  = BORROW_CATS_IN.reduce((a, cat) => a + sumCat(ym, cat, 'in'), 0);
+      const outV = BORROW_CATS_OUT.reduce((a, cat) => a + sumCat(ym, cat, 'out'), 0);
+      return s + inV - outV;
+    }, 0);
+    html += `<tr style="background:#ecdff2!important;font-weight:700;"><td>借入返済 差引</td>`;
+    html += `<td class="${borrowYearNet>=0?'val-in':'val-out'}" style="font-weight:700;">${borrowYearNet===0?'':fmtNet(borrowYearNet)}</td>`;
+    months.forEach(ym => {
+      const inV  = BORROW_CATS_IN.reduce((a, cat) => a + sumCat(ym, cat, 'in'), 0);
+      const outV = BORROW_CATS_OUT.reduce((a, cat) => a + sumCat(ym, cat, 'out'), 0);
+      const v = inV - outV;
+      html += `<td class="${v>=0?'val-in':'val-out'}" style="font-weight:700;">${v===0?'':fmtNet(v)}</td>`;
+    });
+    html += '</tr>';
+  }
+
+  // ===== 月末口座残高セクション =====
+  html += `<tr class="row-section"><td>▼ 月末口座残高</td><td></td>${months.map(()=>'<td></td>').join('')}</tr>`;
+  const cashAccounts = ACCOUNTS.filter(a => !a.isCard);
+  cashAccounts.forEach(acct => {
+    html += `<tr class="row-account"><td style="padding-left:20px;">${acct.name}</td>`;
+    html += `<td></td>`; // 年度合計なし
+    months.forEach(ym => {
+      const [y, mo] = ym.split('-').map(Number);
+      const lastDay = new Date(y, mo, 0).getDate();
+      const lastDate = `${ym}-${String(lastDay).padStart(2,'0')}`;
+      const bal = getBalanceAt(acct.id, lastDate);
+      const cls = bal < 0 ? 'val-bal val-neg' : 'val-bal';
+      html += `<td class="${cls}">${fmtB(bal)}</td>`;
+    });
+    html += '</tr>';
+  });
+  // 口座残高合計
+  html += `<tr class="row-account-total"><td>口座残高合計</td>`;
+  html += `<td></td>`; // 年度合計なし
+  months.forEach(ym => {
+    const [y, mo] = ym.split('-').map(Number);
+    const lastDay = new Date(y, mo, 0).getDate();
+    const lastDate = `${ym}-${String(lastDay).padStart(2,'0')}`;
+    const total = cashAccounts.reduce((s, a) => s + getBalanceAt(a.id, lastDate), 0);
+    const cls = total < 0 ? 'val-bal val-neg' : 'val-bal';
+    html += `<td class="${cls}" style="font-weight:700;">${fmtB(total)}</td>`;
+  });
+  html += '</tr>';
+
+  html += '</tbody></table>';
+  document.getElementById('planTableWrap').innerHTML = html;
+}
+
+function printPlan() {
+  // 印刷用の一時divを作成
+  let printArea = document.getElementById('printArea');
+  if (printArea) printArea.remove();
+  printArea = document.createElement('div');
+  printArea.id = 'printArea';
+
+  const table = document.getElementById('planTable');
+  if (!table) { alert('事業計画データがありません'); return; }
+
+  const title = document.createElement('div');
+  title.style.cssText = 'font-size:14px;font-weight:700;margin-bottom:8px;font-family:sans-serif;';
+  title.textContent = `株式会社フレックスデザイン　事業計画（勘定科目別月次集計）　${new Date().toLocaleDateString('ja-JP')}`;
+  printArea.appendChild(title);
+
+  // テーブルをクローンしてスタイルを付与
+  const clone = table.cloneNode(true);
+  clone.style.cssText = 'border-collapse:collapse;width:100%;font-size:9px;font-family:sans-serif;';
+  clone.querySelectorAll('th, td').forEach(cell => {
+    cell.style.border = '1px solid #ccc';
+    cell.style.padding = '3px 6px';
+    cell.style.whiteSpace = 'nowrap';
+  });
+  clone.querySelectorAll('th').forEach(th => {
+    th.style.background = '#f0f0f0';
+    th.style.textAlign = 'center';
+  });
+  printArea.appendChild(clone);
+  document.body.appendChild(printArea);
+  window.print();
+  setTimeout(() => printArea.remove(), 1000);
+}
 function switchTab(tab) {
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
-  const tabs = ['daily','chart','compare','monthly'];
+  const tabs = ['daily','chart','compare','monthly','plan'];
   document.querySelectorAll('.tab')[tabs.indexOf(tab)].classList.add('active');
   document.getElementById('panel-'+tab).classList.add('active');
   if (tab==='chart') renderCharts();
   if (tab==='compare') renderSales();
   if (tab==='monthly') renderMonthly();
+  if (tab==='plan') renderPlan();
 }
 
 // ===== CSV EXPORT MODAL =====
