@@ -2906,23 +2906,23 @@ function refreshPlanTotals() {
     }
   });
 
-  // 入金合計の年度合計を更新
+  // 入金合計の年度合計セルを更新
   const inYearTotal = months.reduce((s, ym) => {
-    const base = planManualData[`inTotal_${ym}`] || 0;
-    return s + base + getPlanManual(`sim_${ym}`);
+    return s + (planManualData[`inTotal_${ym}`] || 0) + getPlanManual(`sim_${ym}`);
   }, 0);
-  const inYearCell = table.querySelector('.row-total [data-in-year-total]') ||
-    (() => {
-      const cell = table.querySelector('tr.row-total td:nth-child(2)');
-      // 入金合計行かどうか判定（最初のrow-total）
-      return cell;
-    })();
+  const inYearTotalCell = document.getElementById('inYearTotalCell');
+  if (inYearTotalCell) inYearTotalCell.textContent = inYearTotal ? inYearTotal.toLocaleString('ja-JP') : '';
 
-  // 出金合計の年度合計を更新
+  // 出金合計の年度合計セルを更新（手動3項目含む）
   const outYearTotal = months.reduce((s, ym) => {
-    const base = planManualData[`outTotal_${ym}`] || 0;
-    return s + base + getPlanManual(`manualOut_${ym}`);
+    return s
+      + (planManualData[`outTotal_${ym}`] || 0)
+      + getPlanManual(`manualOut_${ym}`)
+      + getPlanManual(`manualTravel_${ym}`)
+      + getPlanManual(`manualOther_${ym}`);
   }, 0);
+  const outYearTotalCell = document.getElementById('outYearTotalCell');
+  if (outYearTotalCell) outYearTotalCell.textContent = outYearTotal ? outYearTotal.toLocaleString('ja-JP') : '';
 }
 
 async function renderPlan() {
@@ -3059,7 +3059,7 @@ async function renderPlan() {
     inYearTotal += total;
     return `<td class="val-in" style="font-weight:700;" data-in-total="${ym}">${fmtV(total)}</td>`;
   }).join('');
-  html += `<tr class="row-total"><td>入金合計</td><td class="val-in" style="font-weight:700;background:#c8dbf3!important;">${fmtV(inYearTotal)}</td>${inTotalCells}</tr>`;
+  html += `<tr class="row-total"><td>入金合計</td><td class="val-in" style="font-weight:700;background:#c8dbf3!important;" id="inYearTotalCell">${fmtV(inYearTotal)}</td>${inTotalCells}</tr>`;
 
   // ===== 出金セクション =====
   html += `<tr class="row-section"><td>▼ 出金</td><td></td>${months.map(()=>'<td></td>').join('')}</tr>`;
@@ -3140,7 +3140,7 @@ async function renderPlan() {
     outYearTotal += total;
     return `<td class="val-out" style="font-weight:700;" data-out-total="${ym}">${fmtV(total)}</td>`;
   }).join('');
-  html += `<tr class="row-total"><td>出金合計</td><td class="val-out" style="font-weight:700;background:#c8dbf3!important;">${fmtV(outYearTotal)}</td>${outTotalCells}</tr>`;
+  html += `<tr class="row-total"><td>出金合計</td><td class="val-out" style="font-weight:700;background:#c8dbf3!important;" id="outYearTotalCell">${fmtV(outYearTotal)}</td>${outTotalCells}</tr>`;
 
   // ===== 収支 =====
   const fmtNet = n => (n < 0 ? '-' : '+') + '¥' + Math.abs(Math.round(n)).toLocaleString('ja-JP');
