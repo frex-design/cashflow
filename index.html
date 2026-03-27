@@ -2921,6 +2921,37 @@ function refreshPlanTotals() {
   }, 0);
   const outYearTotalCell = document.getElementById('outYearTotalCell');
   if (outYearTotalCell) outYearTotalCell.textContent = outYearTotal ? outYearTotal.toLocaleString('ja-JP') : '';
+
+  // 月末口座残高をリアルタイム更新
+  const fmtB = v => (v < 0 ? '-' : '') + '¥' + Math.abs(Math.round(v)).toLocaleString('ja-JP');
+  const cashAccounts = ACCOUNTS.filter(a => !a.isCard);
+
+  months.forEach(ym => {
+    const [y, mo] = ym.split('-').map(Number);
+    const lastDay = new Date(y, mo, 0).getDate();
+    const lastDate = `${ym}-${String(lastDay).padStart(2,'0')}`;
+    const sim = getPlanManual(`sim_${ym}`);
+
+    // 各口座セルを更新
+    cashAccounts.forEach(acct => {
+      const cell = table.querySelector(`[data-bal-acct="${acct.id}"][data-bal-ym="${ym}"]`);
+      if (!cell) return;
+      let bal = getBalanceAt(acct.id, lastDate);
+      if (acct.id === 'akita') bal += sim;
+      cell.textContent = fmtB(bal);
+      cell.className = bal < 0 ? 'val-bal val-neg' : 'val-bal';
+    });
+
+    // 口座残高合計セルを更新
+    const totalCell = table.querySelector(`[data-bal-total="${ym}"]`);
+    if (totalCell) {
+      let total = cashAccounts.reduce((s, a) => s + getBalanceAt(a.id, lastDate), 0);
+      total += sim;
+      totalCell.textContent = fmtB(total);
+      totalCell.className = total < 0 ? 'val-bal val-neg' : 'val-bal';
+      totalCell.style.fontWeight = '700';
+    }
+  });
 }
 
 async function renderPlan() {
@@ -3241,31 +3272,29 @@ async function renderPlan() {
   const cashAccounts = ACCOUNTS.filter(a => !a.isCard);
   cashAccounts.forEach(acct => {
     html += `<tr class="row-account"><td style="padding-left:20px;">${acct.name}</td>`;
-    html += `<td></td>`; // 年度合計なし
+    html += `<td></td>`;
     months.forEach(ym => {
       const [y, mo] = ym.split('-').map(Number);
       const lastDay = new Date(y, mo, 0).getDate();
       const lastDate = `${ym}-${String(lastDay).padStart(2,'0')}`;
       let bal = getBalanceAt(acct.id, lastDate);
-      // 秋田銀行はシミュレーション値を加算
       if (acct.id === 'akita') bal += getPlanManual(`sim_${ym}`);
       const cls = bal < 0 ? 'val-bal val-neg' : 'val-bal';
-      html += `<td class="${cls}">${fmtB(bal)}</td>`;
+      html += `<td class="${cls}" data-bal-acct="${acct.id}" data-bal-ym="${ym}">${fmtB(bal)}</td>`;
     });
     html += '</tr>';
   });
   // 口座残高合計（秋田銀行はシミュレーション含む）
   html += `<tr class="row-account-total"><td>口座残高合計</td>`;
-  html += `<td></td>`; // 年度合計なし
+  html += `<td></td>`;
   months.forEach(ym => {
     const [y, mo] = ym.split('-').map(Number);
     const lastDay = new Date(y, mo, 0).getDate();
     const lastDate = `${ym}-${String(lastDay).padStart(2,'0')}`;
     let total = cashAccounts.reduce((s, a) => s + getBalanceAt(a.id, lastDate), 0);
-    // 秋田銀行のシミュレーション分を加算
     total += getPlanManual(`sim_${ym}`);
     const cls = total < 0 ? 'val-bal val-neg' : 'val-bal';
-    html += `<td class="${cls}" style="font-weight:700;">${fmtB(total)}</td>`;
+    html += `<td class="${cls}" style="font-weight:700;" data-bal-total="${ym}">${fmtB(total)}</td>`;
   });
   html += '</tr>';
 
