@@ -1703,9 +1703,7 @@ function renderDailyTable() {
 
     // Action buttons
     let actionBtns = `<div class="edit-actions" id="act_${e.id}">`;
-    if (!isTransfer) {
-      actionBtns += `<button class="btn btn-edit btn-sm" onclick="startEdit(${e.id})">編集</button>`;
-    }
+    actionBtns += `<button class="btn btn-edit btn-sm" onclick="startEdit(${e.id})">編集</button>`;
     if (e.status === 'plan') {
       actionBtns += `<button class="btn btn-confirm btn-sm" onclick="confirmEntry(${e.id})">確定</button>`;
     }
@@ -2963,28 +2961,32 @@ async function renderPlan() {
   // 借入返済セクションに移動する科目
   const BORROW_CATS_IN  = ['借入金(短期)'];
   const BORROW_CATS_OUT = ['借入金返済(短期)', '借入金返済(長期)'];
+  // 表示から除外する科目
+  const EXCLUDE_CATS = ['資金移動'];
 
   const inOnlyCats  = allCats.filter(c =>
     !BORROW_CATS_IN.includes(c) &&
-    entries.some(e => e.status==='confirmed' && e.category===c && e.type==='in' && !e.date.startsWith('2026-03'))
+    !EXCLUDE_CATS.includes(c) &&
+    entries.some(e => e.status==='confirmed' && e.category===c && e.type==='in' && !e.date.startsWith('2026-03') && !e.isTransfer)
   );
   const outOnlyCats = allCats.filter(c =>
     !BORROW_CATS_OUT.includes(c) &&
-    entries.some(e => e.status==='confirmed' && e.category===c && e.type==='out' && !e.date.startsWith('2026-03'))
+    !EXCLUDE_CATS.includes(c) &&
+    entries.some(e => e.status==='confirmed' && e.category===c && e.type==='out' && !e.date.startsWith('2026-03') && !e.isTransfer)
   );
 
   // 売上高を非表示にする月（2026-04）
   const HIDE_SALES_MONTH = '2026-04';
 
-  // 月ごと科目別集計
+  // 月ごと科目別集計（資金移動除外）
   function sumCat(ym, cat, type) {
     return entries
-      .filter(e => e.date.startsWith(ym) && e.status==='confirmed' && e.category===cat && e.type===type)
+      .filter(e => e.date.startsWith(ym) && e.status==='confirmed' && e.category===cat && e.type===type && !e.isTransfer)
       .reduce((s,e) => s+e.amount, 0);
   }
   function sumAll(ym, type) {
     return entries
-      .filter(e => e.date.startsWith(ym) && e.status==='confirmed' && e.type===type && !e.isTransfer)
+      .filter(e => e.date.startsWith(ym) && e.status==='confirmed' && e.type===type && !e.isTransfer && e.category !== '資金移動')
       .reduce((s,e) => s+e.amount, 0);
   }
 
