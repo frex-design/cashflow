@@ -2930,18 +2930,32 @@ function refreshPlanTotals() {
   const fmtB = v => (v < 0 ? '-' : '') + '¥' + Math.abs(Math.round(v)).toLocaleString('ja-JP');
   const cashAccounts = ACCOUNTS.filter(a => !a.isCard);
 
+  // 手動出金の累計を事前計算
+  const manualOutCumulative = {};
+  let cumManual = 0;
+  months.forEach(ym => {
+    cumManual += getPlanManual(`manualOut_${ym}`)
+      + getPlanManual(`manualTravel_${ym}`)
+      + getPlanManual(`manualOther_${ym}`);
+    manualOutCumulative[ym] = cumManual;
+  });
+
   months.forEach(ym => {
     const [y, mo] = ym.split('-').map(Number);
     const lastDay = new Date(y, mo, 0).getDate();
     const lastDate = `${ym}-${String(lastDay).padStart(2,'0')}`;
     const sim = getPlanManual(`sim_${ym}`);
+    const cumOut = manualOutCumulative[ym] || 0;
 
     // 各口座セルを更新
     cashAccounts.forEach(acct => {
       const cell = table.querySelector(`[data-bal-acct="${acct.id}"][data-bal-ym="${ym}"]`);
       if (!cell) return;
       let bal = getBalanceAt(acct.id, lastDate);
-      if (acct.id === 'akita') bal += sim;
+      if (acct.id === 'akita') {
+        bal += sim;
+        bal -= cumOut;
+      }
       cell.textContent = fmtB(bal);
       cell.className = bal < 0 ? 'val-bal val-neg' : 'val-bal';
     });
@@ -2951,6 +2965,7 @@ function refreshPlanTotals() {
     if (totalCell) {
       let total = cashAccounts.reduce((s, a) => s + getBalanceAt(a.id, lastDate), 0);
       total += sim;
+      total -= cumOut;
       totalCell.textContent = fmtB(total);
       totalCell.className = total < 0 ? 'val-bal val-neg' : 'val-bal';
       totalCell.style.fontWeight = '700';
@@ -3300,6 +3315,18 @@ async function renderPlan() {
   // ===== 月末口座残高セクション =====
   html += `<tr class="row-section"><td>▼ 月末口座残高</td><td></td>${months.map(()=>'<td></td>').join('')}</tr>`;
   const cashAccounts = ACCOUNTS.filter(a => !a.isCard);
+
+  // 手動出金は秋田銀行から差し引く（累計）
+  // 各月の累計手動出金を事前計算
+  const manualOutCumulative = {};
+  let cumManual = 0;
+  months.forEach(ym => {
+    cumManual += getPlanManual(`manualOut_${ym}`)
+      + getPlanManual(`manualTravel_${ym}`)
+      + getPlanManual(`manualOther_${ym}`);
+    manualOutCumulative[ym] = cumManual;
+  });
+
   cashAccounts.forEach(acct => {
     html += `<tr class="row-account"><td style="padding-left:20px;">${acct.name}</td>`;
     html += `<td></td>`;
@@ -3308,13 +3335,16 @@ async function renderPlan() {
       const lastDay = new Date(y, mo, 0).getDate();
       const lastDate = `${ym}-${String(lastDay).padStart(2,'0')}`;
       let bal = getBalanceAt(acct.id, lastDate);
-      if (acct.id === 'akita') bal += getPlanManual(`sim_${ym}`);
+      if (acct.id === 'akita') {
+        bal += getPlanManual(`sim_${ym}`);
+        bal -= manualOutCumulative[ym]; // 手動出金累計を差し引き
+      }
       const cls = bal < 0 ? 'val-bal val-neg' : 'val-bal';
       html += `<td class="${cls}" data-bal-acct="${acct.id}" data-bal-ym="${ym}">${fmtB(bal)}</td>`;
     });
     html += '</tr>';
   });
-  // 口座残高合計（秋田銀行はシミュレーション含む）
+  // 口座残高合計
   html += `<tr class="row-account-total"><td>口座残高合計</td>`;
   html += `<td></td>`;
   months.forEach(ym => {
@@ -3323,6 +3353,7 @@ async function renderPlan() {
     const lastDate = `${ym}-${String(lastDay).padStart(2,'0')}`;
     let total = cashAccounts.reduce((s, a) => s + getBalanceAt(a.id, lastDate), 0);
     total += getPlanManual(`sim_${ym}`);
+    total -= manualOutCumulative[ym]; // 手動出金累計を差し引き
     const cls = total < 0 ? 'val-bal val-neg' : 'val-bal';
     html += `<td class="${cls}" style="font-weight:700;" data-bal-total="${ym}">${fmtB(total)}</td>`;
   });
