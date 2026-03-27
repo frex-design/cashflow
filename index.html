@@ -829,10 +829,9 @@
           <option>借入金(短期)</option><option>外注加工費</option><option>その他</option>
         </select>
       </div>
-    </div>
-    <div style="display:flex; justify-content:flex-end; gap:8px;">
+    <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:16px;">
       <button class="btn btn-ghost" onclick="closeEditModal()">キャンセル</button>
-      <button class="btn btn-primary" onclick="saveEditModal()">保存</button>
+      <button class="btn btn-primary" onclick="saveEditModal()">💾 保存</button>
     </div>
   </div>
 </div>
@@ -943,17 +942,17 @@
 <script>
 // ===== STATE =====
 const ACCOUNTS = [
-  { id: 'akita',       name: '秋田銀行',       color: '#4f9cf9', initBalance: 17948729 },
-  { id: 'shinkin',     name: '信用金庫',        color: '#2ecc71', initBalance: 4404739  },
-  { id: 'gmo',         name: 'GMOあおぞら',     color: '#9b59b6', initBalance: 46966    },
+  { id: 'akita',       name: '秋田銀行',       color: '#4f9cf9', initBalance: 17186079 },
+  { id: 'shinkin',     name: '信用金庫',        color: '#2ecc71', initBalance: 4404189  },
+  { id: 'gmo',         name: 'GMOあおぞら',     color: '#9b59b6', initBalance: 804916   },
   { id: 'paild',       name: 'Paild口座',       color: '#1abc9c', initBalance: 191808   },
-  { id: 'cash_honsha', name: '現金（本社）',     color: '#f1c40f', initBalance: 7988     },
-  { id: 'akita_yokote',name: '秋田銀行（横手）', color: '#e67e22', initBalance: 5712     },
-  { id: 'cash_yokote', name: '現金（横手）',     color: '#e74c3c', initBalance: 5784     },
+  { id: 'cash_honsha', name: '現金（本社）',     color: '#f1c40f', initBalance: 7588     },
+  { id: 'akita_yokote',name: '秋田銀行（横手）', color: '#e67e22', initBalance: 2712     },
+  { id: 'cash_yokote', name: '現金（横手）',     color: '#e74c3c', initBalance: 5384     },
   { id: 'card_visa',   name: 'VISAカード',      color: '#1a56db', initBalance: 0, isCard: true },
   { id: 'card_jib',    name: 'JCBカード',       color: '#7e3af2', initBalance: 0, isCard: true },
 ];
-const INIT_DATE = '2026-03-31';
+const INIT_DATE = '2026-03-27'; // 3月27日残高を初期値・3月28日から計算スタート
 
 // 残高調整
 let balanceAdjustments = {};
@@ -2022,10 +2021,8 @@ async function submitEntry() {
   const acct = ACCOUNTS.find(a => a.id === account);
   const copyNext = document.getElementById('copyNextMonth')?.checked || false;
 
-  // 通常登録
   entries.push({ id: nextId++, date, account, type, status, amount, partner, desc, category, isCard: acct?.isCard || false, payMethod });
 
-  // 翌月同日コピー
   if (copyNext) {
     const d = new Date(date + 'T00:00:00');
     d.setMonth(d.getMonth() + 1);
@@ -2039,7 +2036,6 @@ async function submitEntry() {
   document.getElementById('entryDesc').value = '';
   document.getElementById('entryCategory').value = '';
   document.getElementById('entryPayMethod').value = '';
-  // チェックボックスはそのまま維持（連続登録しやすいように）
   renderAll();
   if (document.getElementById('panel-chart').classList.contains('active')) renderCharts();
   if (document.getElementById('panel-compare').classList.contains('active')) renderCompare();
@@ -2073,7 +2069,6 @@ async function addTransfer() {
   if (document.getElementById('panel-chart').classList.contains('active')) renderCharts();
   if (document.getElementById('panel-monthly').classList.contains('active')) renderMonthly();
 
-  // 秋田銀行→秋田銀行（横手）の場合のみ横手帳簿に自動送信
   if (fromId === 'akita' && toId === 'akita_yokote') {
     await sendToYokote(date, amount, status);
   }
@@ -2810,7 +2805,7 @@ function exportCSV() { openCsvExport(); }
 
 // ===== RESET =====
 async function resetAll() {
-  if (!confirm('全データを削除してリセットしますか？\n（口座残高の初期値3月末残高は保持されます）')) return;
+  if (!confirm('全データを削除してリセットしますか？\n（口座残高の初期値3月27日残高は保持されます）')) return;
   entries = [];
   localStorage.removeItem('fd_entries_v3');
   await sbFetch('/rest/v1/entries?id=gte.0', 'DELETE');
