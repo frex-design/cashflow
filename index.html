@@ -245,16 +245,12 @@
 
   /* ===== 印刷スタイル ===== */
   @media print {
-    @page { size: A3 landscape; margin: 0; }
+    @page { size: A3 landscape; margin: 10mm; }
     body * { visibility: hidden; }
     #printArea, #printArea * { visibility: visible; }
-    #printArea {
-      position: fixed; top: 0; left: 0;
-      width: 420mm; height: 297mm;
-      overflow: hidden;
-      padding: 6mm;
-      box-sizing: border-box;
-    }
+    #printArea { position: fixed; top: 0; left: 0; width: 100%; }
+    #printArea table { font-size: 9px; }
+    #printArea th, #printArea td { padding: 3px 5px; border: 1px solid #ccc; }
     #printArea td:first-child { position: static; }
   }
 
@@ -1105,43 +1101,49 @@ function startRealtimeSync() {
       if (document.getElementById('panel-daily').classList.contains('active')) renderDailyTable();
       if (document.getElementById('panel-chart').classList.contains('active')) renderCharts();
     }
-    // 事業計画の手動入力値・メモも同期
-    const planData = await sbFetch('/rest/v1/plan_manual?select=key,value,memo_text');
+    // 事業計画の手動入力値も同期
+    const planData = await sbFetch('/rest/v1/plan_manual?select=key,value');
     if (planData && Array.isArray(planData)) {
-      planData.forEach(r => {
-        if (r.memo_text !== null && r.memo_text !== undefined) {
-          planManualData[r.key] = r.memo_text;
-        } else {
-          planManualData[r.key] = Number(r.value);
-        }
-      });
+      planData.forEach(r => { planManualData[r.key] = Number(r.value); });
       localStorage.setItem('fd_plan_manual', JSON.stringify(planManualData));
-      if (document.getElementById('panel-plan').classList.contains('active')) {
-        refreshPlanTotals();
-        // メモ入力欄を最新値に更新
-        document.querySelectorAll('input[onchange*="setPlanMemo"]').forEach(input => {
-          const match = input.getAttribute('onchange').match(/setPlanMemo\('([^']+)'/);
-          if (match) {
-            const key = match[1];
-            const newVal = getPlanMemo(key);
-            if (input.value !== newVal) input.value = newVal;
-          }
-        });
-      }
+      if (document.getElementById('panel-plan').classList.contains('active')) refreshPlanTotals();
     }
   }, 30000);
 }
 // ===== 横手帳簿への自動送信 =====
 async function sendToYokote(date, amount, status) {
-  const yokoteId = Date.now() + Math.floor(Math.random() * 1000);
-  const row = {
-    id: yokoteId, date, account: 'akita_yokote', entry_type: 'in',
-    status, amount, partner: '秋田銀行（本社）',
-    description: '本社からの資金移動', category: '資金移動',
-    pay_method: null, is_card: false, is_transfer: true, sort_order: yokoteId,
+  const YOKOTE_URL = 'https://grhqmuqzpjwiuyexasmm.supabase.co';
+  const YOKOTE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdyaHFtdXF6cGp3aXV5ZXhhc21tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5ODQ4MzYsImV4cCI6MjA4OTU2MDgzNn0.USghV32TAEgx2fR62KHN3JI5YHTetsaTU5NgFWTScRo';
+  const yokoteHeaders = {
+    'apikey': YOKOTE_KEY,
+    'Authorization': 'Bearer ' + YOKOTE_KEY,
+    'Content-Type': 'application/json',
+    'Prefer': 'resolution=merge-duplicates'
   };
-  const result = await sbFetch('/rest/v1/entries_yokote?on_conflict=id', 'POST', [row]);
-  if (result) showToast('横手帳簿にも記帳しました ✓');
+  const val = JSON.stringify({
+    date: date,
+    amount: parseInt(amount),
+    desc: '本社からの資金移動'
+  });
+  try {
+    // まず既存のtransfer_requestを削除
+    await fetch(YOKOTE_URL + '/rest/v1/ledger_meta?key=eq.transfer_request', {
+      method: 'DELETE', headers: yokoteHeaders
+    });
+    // 新しいtransfer_requestを登録
+    const res = await fetch(YOKOTE_URL + '/rest/v1/ledger_meta', {
+      method: 'POST', headers: yokoteHeaders,
+      body: JSON.stringify({ key: 'transfer_request', value: val })
+    });
+    if (res.ok) {
+      showToast('横手帳簿に資金移動を送信しました ✓');
+    } else {
+      showToast('横手帳簿への送信に失敗しました');
+    }
+  } catch(e) {
+    console.error('sendToYokote error:', e);
+    showToast('横手帳簿への送信に失敗しました');
+  }
 }
 
 // Transfer presets: [fromId, toId, label]
@@ -2178,7 +2180,7 @@ async function addTransfer() {
   if (document.getElementById('panel-chart').classList.contains('active')) renderCharts();
   if (document.getElementById('panel-monthly').classList.contains('active')) renderMonthly();
 
-  if (fromId === 'akita' && toId === 'akita_yokote') {
+  if ((fromId === 'akita' || fromId === 'shinkin') && toId === 'akita_yokote') {
     await sendToYokote(date, amount, status);
   }
 }
@@ -2771,17 +2773,13 @@ let planManualData = {};
 let planFiscalYear = null; // 表示中の年度（4月始まりの開始年 例:2026なら2026年4月〜2027年3月）
 
 async function loadPlanManual() {
+  // まずlocalStorageから読み込み（表示速度優先）
   const local = localStorage.getItem('fd_plan_manual');
   if (local) planManualData = JSON.parse(local);
-  const data = await sbFetch('/rest/v1/plan_manual?select=key,value,memo_text');
+  // Supabaseから最新を取得
+  const data = await sbFetch('/rest/v1/plan_manual?select=key,value');
   if (data && Array.isArray(data)) {
-    data.forEach(r => {
-      if (r.memo_text !== null && r.memo_text !== undefined) {
-        planManualData[r.key] = r.memo_text; // メモはテキストのまま
-      } else {
-        planManualData[r.key] = Number(r.value);
-      }
-    });
+    data.forEach(r => { planManualData[r.key] = Number(r.value); });
     localStorage.setItem('fd_plan_manual', JSON.stringify(planManualData));
   }
 }
@@ -2799,16 +2797,6 @@ async function setPlanManual(key, val) {
 
 function getPlanManual(key) {
   return planManualData[key] || 0;
-}
-
-// メモの保存・読み込み（plan_manualテーブルのmemo_text列を使用）
-async function setPlanMemo(key, text) {
-  planManualData[key] = text;
-  localStorage.setItem('fd_plan_manual', JSON.stringify(planManualData));
-  await sbFetch('/rest/v1/plan_manual?on_conflict=key', 'POST', [{ key, value: 0, memo_text: text }]);
-}
-function getPlanMemo(key) {
-  return planManualData[key] || '';
 }
 
 // 年度を±1する
@@ -2961,32 +2949,18 @@ function refreshPlanTotals() {
   const fmtB = v => (v < 0 ? '-' : '') + '¥' + Math.abs(Math.round(v)).toLocaleString('ja-JP');
   const cashAccounts = ACCOUNTS.filter(a => !a.isCard);
 
-  // 手動出金の累計を事前計算
-  const manualOutCumulative = {};
-  let cumManual = 0;
-  months.forEach(ym => {
-    cumManual += getPlanManual(`manualOut_${ym}`)
-      + getPlanManual(`manualTravel_${ym}`)
-      + getPlanManual(`manualOther_${ym}`);
-    manualOutCumulative[ym] = cumManual;
-  });
-
   months.forEach(ym => {
     const [y, mo] = ym.split('-').map(Number);
     const lastDay = new Date(y, mo, 0).getDate();
     const lastDate = `${ym}-${String(lastDay).padStart(2,'0')}`;
     const sim = getPlanManual(`sim_${ym}`);
-    const cumOut = manualOutCumulative[ym] || 0;
 
     // 各口座セルを更新
     cashAccounts.forEach(acct => {
       const cell = table.querySelector(`[data-bal-acct="${acct.id}"][data-bal-ym="${ym}"]`);
       if (!cell) return;
       let bal = getBalanceAt(acct.id, lastDate);
-      if (acct.id === 'akita') {
-        bal += sim;
-        bal -= cumOut;
-      }
+      if (acct.id === 'akita') bal += sim;
       cell.textContent = fmtB(bal);
       cell.className = bal < 0 ? 'val-bal val-neg' : 'val-bal';
     });
@@ -2996,37 +2970,10 @@ function refreshPlanTotals() {
     if (totalCell) {
       let total = cashAccounts.reduce((s, a) => s + getBalanceAt(a.id, lastDate), 0);
       total += sim;
-      total -= cumOut;
       totalCell.textContent = fmtB(total);
       totalCell.className = total < 0 ? 'val-bal val-neg' : 'val-bal';
       totalCell.style.fontWeight = '700';
     }
-  });
-
-  // 出金項目の%をリアルタイム更新（分母：年度の入金合計）
-  const inYearForOutPct = months.reduce((s, ym) => {
-    return s + (planManualData[`inTotal_${ym}`] || 0) + getPlanManual(`sim_${ym}`);
-  }, 0);
-  const fmtPctLabel = (amt, inTotal) => {
-    if (!inTotal || !amt) return '';
-    return `${(amt / inTotal * 100).toFixed(1)}%`;
-  };
-  // 通常出金科目
-  table.querySelectorAll('.out-pct-label[data-cat-pct]').forEach(span => {
-    const catKey = span.dataset.catPct;
-    let amt = 0;
-    if (catKey === 'manualOut') {
-      amt = months.reduce((s, ym) => s + getPlanManual(`manualOut_${ym}`), 0);
-    } else if (catKey === 'manualTravel') {
-      amt = months.reduce((s, ym) => s + getPlanManual(`manualTravel_${ym}`), 0);
-    } else if (catKey === 'manualOther') {
-      amt = months.reduce((s, ym) => s + getPlanManual(`manualOther_${ym}`), 0);
-    } else {
-      // 通常科目：data-out-cat属性のセルを集計
-      const catCells = table.querySelectorAll(`[data-out-cat="${catKey}"]`);
-      catCells.forEach(cell => { amt += parseInt(cell.textContent.replace(/,/g, '')) || 0; });
-    }
-    span.textContent = fmtPctLabel(amt, inYearForOutPct);
   });
 }
 
@@ -3173,13 +3120,13 @@ async function renderPlan() {
   // ===== 出金セクション =====
   html += `<tr class="row-section"><td>▼ 出金</td><td></td>${months.map(()=>'<td></td>').join('')}</tr>`;
   outOnlyCats.forEach(cat => {
-    const catKey = encodeURIComponent(cat);
-    html += `<tr><td style="padding-left:20px;">${cat}<span class="out-pct-label" data-cat-pct="${catKey}" style="font-size:10px;color:var(--text3);margin-left:6px;"></span></td>`;
+    html += `<tr><td style="padding-left:20px;">${cat}</td>`;
+    // 年度合計
     const yearTotal = months.reduce((s, ym) => s + sumCat(ym, cat, 'out'), 0);
     html += `<td class="val-out" style="background:#fdf0ef!important;">${fmtV(yearTotal)}</td>`;
     months.forEach(ym => {
       const v = sumCat(ym, cat, 'out');
-      html += `<td class="val-out" data-out-cat="${catKey}" data-out-ym="${ym}">${fmtV(v)}</td>`;
+      html += `<td class="val-out">${fmtV(v)}</td>`;
     });
     html += '</tr>';
   });
@@ -3187,7 +3134,7 @@ async function renderPlan() {
   // 外注加工費(手動)
   const manualOutYearTotal = months.reduce((s, ym) => s + getPlanManual(`manualOut_${ym}`), 0);
   html += `<tr style="background:#fdf0ef!important;">
-    <td style="padding-left:20px;font-weight:600;color:var(--red);">✏️ 外注加工費（手動）<span class="out-pct-label" data-cat-pct="manualOut" style="font-size:10px;color:var(--text3);margin-left:6px;"></span></td>
+    <td style="padding-left:20px;font-weight:600;color:var(--red);">✏️ 外注加工費（手動）</td>
     <td class="val-out" style="font-weight:700;background:#f5e0de!important;" id="manualOutYearTotalCell">${manualOutYearTotal ? manualOutYearTotal.toLocaleString('ja-JP') : ''}</td>`;
   months.forEach(ym => {
     const val = getPlanManual(`manualOut_${ym}`);
@@ -3204,7 +3151,7 @@ async function renderPlan() {
   // 旅費交通費(手動)
   const manualTravel = months.reduce((s, ym) => s + getPlanManual(`manualTravel_${ym}`), 0);
   html += `<tr style="background:#fdf0ef!important;">
-    <td style="padding-left:20px;font-weight:600;color:var(--red);">✏️ 旅費交通費（手動）<span class="out-pct-label" data-cat-pct="manualTravel" style="font-size:10px;color:var(--text3);margin-left:6px;"></span></td>
+    <td style="padding-left:20px;font-weight:600;color:var(--red);">✏️ 旅費交通費（手動）</td>
     <td class="val-out" style="font-weight:700;background:#f5e0de!important;" id="manualTravelYearTotalCell">${manualTravel ? manualTravel.toLocaleString('ja-JP') : ''}</td>`;
   months.forEach(ym => {
     const val = getPlanManual(`manualTravel_${ym}`);
@@ -3221,7 +3168,7 @@ async function renderPlan() {
   // その他(手動)
   const manualOther = months.reduce((s, ym) => s + getPlanManual(`manualOther_${ym}`), 0);
   html += `<tr style="background:#fdf0ef!important;">
-    <td style="padding-left:20px;font-weight:600;color:var(--red);">✏️ その他（手動）<span class="out-pct-label" data-cat-pct="manualOther" style="font-size:10px;color:var(--text3);margin-left:6px;"></span></td>
+    <td style="padding-left:20px;font-weight:600;color:var(--red);">✏️ その他（手動）</td>
     <td class="val-out" style="font-weight:700;background:#f5e0de!important;" id="manualOtherYearTotalCell">${manualOther ? manualOther.toLocaleString('ja-JP') : ''}</td>`;
   months.forEach(ym => {
     const val = getPlanManual(`manualOther_${ym}`);
@@ -3234,19 +3181,6 @@ async function renderPlan() {
     </td>`;
   });
   html += '</tr>';
-
-  // ===== メモ行①（その他手動の下）=====
-  const memo1 = getPlanMemo('plan_memo_1');
-  html += `<tr style="background:#fffbf0!important;">
-    <td colspan="2" style="padding:4px 10px;font-weight:600;color:var(--text2);font-size:11px;">📝 メモ①</td>
-    ${months.map(ym => `<td style="padding:2px 4px;">
-      <input type="text"
-        value="${(getPlanMemo('plan_memo_1_' + ym)||'').replace(/"/g,'&quot;')}"
-        placeholder="メモ..."
-        onchange="setPlanMemo('plan_memo_1_${ym}', this.value)"
-        style="width:100%;border:1px solid var(--border);border-radius:4px;padding:3px 6px;font-size:11px;font-family:var(--sans);background:var(--bg);color:var(--text);outline:none;">
-    </td>`).join('')}
-  </tr>`;
 
   // 出金合計行（借入返済除く・手動3項目含む）
   let outYearTotal = 0;
@@ -3359,18 +3293,6 @@ async function renderPlan() {
   // ===== 月末口座残高セクション =====
   html += `<tr class="row-section"><td>▼ 月末口座残高</td><td></td>${months.map(()=>'<td></td>').join('')}</tr>`;
   const cashAccounts = ACCOUNTS.filter(a => !a.isCard);
-
-  // 手動出金は秋田銀行から差し引く（累計）
-  // 各月の累計手動出金を事前計算
-  const manualOutCumulative = {};
-  let cumManual = 0;
-  months.forEach(ym => {
-    cumManual += getPlanManual(`manualOut_${ym}`)
-      + getPlanManual(`manualTravel_${ym}`)
-      + getPlanManual(`manualOther_${ym}`);
-    manualOutCumulative[ym] = cumManual;
-  });
-
   cashAccounts.forEach(acct => {
     html += `<tr class="row-account"><td style="padding-left:20px;">${acct.name}</td>`;
     html += `<td></td>`;
@@ -3379,16 +3301,13 @@ async function renderPlan() {
       const lastDay = new Date(y, mo, 0).getDate();
       const lastDate = `${ym}-${String(lastDay).padStart(2,'0')}`;
       let bal = getBalanceAt(acct.id, lastDate);
-      if (acct.id === 'akita') {
-        bal += getPlanManual(`sim_${ym}`);
-        bal -= manualOutCumulative[ym]; // 手動出金累計を差し引き
-      }
+      if (acct.id === 'akita') bal += getPlanManual(`sim_${ym}`);
       const cls = bal < 0 ? 'val-bal val-neg' : 'val-bal';
       html += `<td class="${cls}" data-bal-acct="${acct.id}" data-bal-ym="${ym}">${fmtB(bal)}</td>`;
     });
     html += '</tr>';
   });
-  // 口座残高合計
+  // 口座残高合計（秋田銀行はシミュレーション含む）
   html += `<tr class="row-account-total"><td>口座残高合計</td>`;
   html += `<td></td>`;
   months.forEach(ym => {
@@ -3397,31 +3316,17 @@ async function renderPlan() {
     const lastDate = `${ym}-${String(lastDay).padStart(2,'0')}`;
     let total = cashAccounts.reduce((s, a) => s + getBalanceAt(a.id, lastDate), 0);
     total += getPlanManual(`sim_${ym}`);
-    total -= manualOutCumulative[ym]; // 手動出金累計を差し引き
     const cls = total < 0 ? 'val-bal val-neg' : 'val-bal';
     html += `<td class="${cls}" style="font-weight:700;" data-bal-total="${ym}">${fmtB(total)}</td>`;
   });
   html += '</tr>';
 
-  // ===== メモ行②（最下部）=====
-  html += `<tr style="background:#fffbf0!important;">
-    <td colspan="2" style="padding:4px 10px;font-weight:600;color:var(--text2);font-size:11px;">📝 メモ②</td>
-    ${months.map(ym => `<td style="padding:2px 4px;">
-      <input type="text"
-        value="${(getPlanMemo('plan_memo_2_' + ym)||'').replace(/"/g,'&quot;')}"
-        placeholder="メモ..."
-        onchange="setPlanMemo('plan_memo_2_${ym}', this.value)"
-        style="width:100%;border:1px solid var(--border);border-radius:4px;padding:3px 6px;font-size:11px;font-family:var(--sans);background:var(--bg);color:var(--text);outline:none;">
-    </td>`).join('')}
-  </tr>`;
-
   html += '</tbody></table>';
   document.getElementById('planTableWrap').innerHTML = html;
-  // 初期表示時も%をリアルタイム反映
-  refreshPlanTotals();
 }
 
 function printPlan() {
+  // 印刷用の一時divを作成
   let printArea = document.getElementById('printArea');
   if (printArea) printArea.remove();
   printArea = document.createElement('div');
@@ -3430,58 +3335,27 @@ function printPlan() {
   const table = document.getElementById('planTable');
   if (!table) { alert('事業計画データがありません'); return; }
 
-  // タイトル
   const title = document.createElement('div');
-  title.style.cssText = 'font-size:11px;font-weight:700;margin-bottom:4px;font-family:sans-serif;';
+  title.style.cssText = 'font-size:14px;font-weight:700;margin-bottom:8px;font-family:sans-serif;';
   title.textContent = `株式会社フレックスデザイン　事業計画（勘定科目別月次集計）　${new Date().toLocaleDateString('ja-JP')}`;
   printArea.appendChild(title);
 
-  // テーブルをクローン
+  // テーブルをクローンしてスタイルを付与
   const clone = table.cloneNode(true);
-
-  // inputをテキストに変換（手動入力値を表示）
-  clone.querySelectorAll('input').forEach(input => {
-    const span = document.createElement('span');
-    span.textContent = input.value ? Number(input.value).toLocaleString('ja-JP') : '';
-    span.style.cssText = 'display:block;text-align:right;font-family:monospace;font-size:inherit;';
-    input.parentNode.replaceChild(span, input);
-  });
-
-  // stickyを解除
+  clone.style.cssText = 'border-collapse:collapse;width:100%;font-size:9px;font-family:sans-serif;';
   clone.querySelectorAll('th, td').forEach(cell => {
-    cell.style.position = 'static';
-    cell.style.border = '1px solid #bbb';
-    cell.style.padding = '2px 4px';
+    cell.style.border = '1px solid #ccc';
+    cell.style.padding = '3px 6px';
     cell.style.whiteSpace = 'nowrap';
-    cell.style.fontSize = '8px';
-    cell.style.fontFamily = 'sans-serif';
   });
   clone.querySelectorAll('th').forEach(th => {
-    th.style.background = '#e8edf3';
+    th.style.background = '#f0f0f0';
     th.style.textAlign = 'center';
-    th.style.fontWeight = '700';
   });
-  clone.style.cssText = 'border-collapse:collapse;width:100%;table-layout:auto;';
-
-  // ラッパーでscale縮小
-  const wrapper = document.createElement('div');
-  wrapper.style.cssText = 'transform-origin:top left;';
-  wrapper.appendChild(clone);
-  printArea.appendChild(wrapper);
+  printArea.appendChild(clone);
   document.body.appendChild(printArea);
-
-  // A3横の印刷可能幅（420mm - 余白12mm = 408mm）をpxに換算（96dpi基準）
-  const A3_W_PX = (408 / 25.4) * 96;
-  const A3_H_PX = (285 / 25.4) * 96; // 297mm - 余白12mm
-  const tableW = clone.scrollWidth;
-  const tableH = clone.scrollHeight + 30; // タイトル分
-  const scaleX = A3_W_PX / tableW;
-  const scaleY = A3_H_PX / tableH;
-  const scale  = Math.min(scaleX, scaleY, 1); // 拡大はしない
-  wrapper.style.transform = `scale(${scale})`;
-
   window.print();
-  setTimeout(() => printArea.remove(), 1500);
+  setTimeout(() => printArea.remove(), 1000);
 }
 async function switchTab(tab) {
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
