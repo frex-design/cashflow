@@ -675,16 +675,16 @@
 </div><!-- /main -->
 
 <!-- ===== EDIT MODAL ===== -->
-<div id="editModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.35); z-index:200; align-items:center; justify-content:center;">
+<div id="editModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.35); z-index:400; align-items:center; justify-content:center;">
   <div style="background:#fff; border-radius:12px; padding:28px; width:560px; max-width:95vw; box-shadow:0 8px 40px rgba(0,0,0,0.18);">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
       <div style="font-size:15px; font-weight:600; color:var(--text);">入出金を編集</div>
       <button onclick="closeEditModal()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--text3);">✕</button>
     </div>
     <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px;">
-      <div class="form-group">
+      <div class="form-group" style="position:relative;">
         <label class="form-label">日付</label>
-        <div style="display:flex; align-items:center; gap:0; border:1px solid var(--border); border-radius:5px; overflow:hidden; background:var(--bg3); position:relative;">
+        <div style="display:flex; align-items:center; gap:0; border:1px solid var(--border); border-radius:5px; background:var(--bg3);">
           <button type="button" class="filter-nav-btn" onclick="shiftModalDate(-1)" title="前日">&#8249;</button>
           <div id="em_dateDisplay" onclick="event.stopPropagation(); toggleCustomCal('modal')"
             style="flex:1; text-align:center; padding:7px 4px; font-size:13px; color:var(--text); cursor:pointer; user-select:none; white-space:nowrap;">
@@ -692,7 +692,7 @@
           <input type="hidden" id="em_date">
           <button type="button" class="filter-nav-btn" onclick="shiftModalDate(1)" title="翌日">&#8250;</button>
         </div>
-        <div id="customCal_modal" class="custom-cal" style="display:none; z-index:300;"></div>
+        <div id="customCal_modal" class="custom-cal" style="display:none; z-index:500; position:absolute; top:calc(100% - 8px); left:0;"></div>
       </div>
       <div class="form-group">
         <label class="form-label">口座</label>
