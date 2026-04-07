@@ -2980,17 +2980,12 @@ function refreshPlanTotals() {
 async function renderPlan() {
   await loadPlanManual();
 
-  // 年度初期値：データがある最初の年度（4月始まり）
+  // 年度初期値：当年度（今日の日付から4月始まりで判定）
   if (planFiscalYear === null) {
-    const allMonths = entries.map(e => e.date.slice(0,7)).sort();
-    if (allMonths.length === 0) {
-      document.getElementById('planTableWrap').innerHTML = '<div style="text-align:center;padding:40px;color:var(--text3);">データがありません</div>';
-      return;
-    }
-    // 最初のデータがある月から年度を決定（4月以降なら同年、1-3月なら前年が年度開始）
-    const firstYm = allMonths[0];
-    const [fy, fm] = firstYm.split('-').map(Number);
-    planFiscalYear = fm >= 4 ? fy : fy - 1;
+    const today = new Date();
+    const y = today.getFullYear();
+    const m = today.getMonth() + 1; // 1-12
+    planFiscalYear = m >= 4 ? y : y - 1;
   }
 
   // 表示する12ヶ月（選択年度の4月〜翌3月）
@@ -3366,7 +3361,10 @@ async function switchTab(tab) {
   if (tab==='chart') renderCharts();
   if (tab==='compare') renderSales();
   if (tab==='monthly') renderMonthly();
-  if (tab==='plan') await renderPlan();
+  if (tab==='plan') {
+    planFiscalYear = null; // タブを開くたびに当年度にリセット
+    await renderPlan();
+  }
 }
 
 // ===== CSV EXPORT MODAL =====
