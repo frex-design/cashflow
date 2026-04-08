@@ -371,7 +371,7 @@
     <button class="btn btn-ghost btn-sm" onclick="openCsvImport()">CSV取込</button>
     <button class="btn btn-ghost btn-sm" onclick="openCsvExport()">CSV出力</button>
     <button class="btn btn-danger btn-sm" onclick="resetAll()">リセット</button>
-    <span id="verLabel" style="font-size:10px;color:var(--text3);font-family:var(--mono);letter-spacing:0.03em;white-space:nowrap;">Ver:20260407_161540</span>
+    <span id="verLabel" style="font-size:10px;color:var(--text3);font-family:var(--mono);letter-spacing:0.03em;white-space:nowrap;">Ver:20260408_185736</span>
   </div>
 </div>
 
@@ -836,16 +836,23 @@
 </div><!-- /main -->
 
 <!-- ===== EDIT MODAL ===== -->
-<div id="editModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.35); z-index:200; align-items:center; justify-content:center;">
+<div id="editModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.35); z-index:400; align-items:center; justify-content:center;">
   <div style="background:#fff; border-radius:12px; padding:28px; width:560px; max-width:95vw; box-shadow:0 8px 40px rgba(0,0,0,0.18);">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
       <div style="font-size:15px; font-weight:600; color:var(--text);">入出金を編集</div>
       <button onclick="closeEditModal()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--text3);">✕</button>
     </div>
     <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px;">
-      <div class="form-group">
+      <div class="form-group" style="position:relative;">
         <label class="form-label">日付</label>
-        <input type="date" class="form-input" id="em_date">
+        <div style="display:flex;align-items:center;gap:0;border:1px solid var(--border);border-radius:5px;background:var(--bg3);">
+          <button type="button" class="filter-nav-btn" onclick="shiftModalDate(-1)">&#8249;</button>
+          <div id="em_dateDisplay" onclick="event.stopPropagation();toggleCustomCal('modal')"
+            style="flex:1;text-align:center;padding:7px 4px;font-size:13px;color:var(--text);cursor:pointer;user-select:none;white-space:nowrap;"></div>
+          <input type="hidden" id="em_date">
+          <button type="button" class="filter-nav-btn" onclick="shiftModalDate(1)">&#8250;</button>
+        </div>
+        <div id="customCal_modal" class="custom-cal" style="display:none;position:absolute;top:calc(100% - 4px);left:0;z-index:600;"></div>
       </div>
       <div class="form-group">
         <label class="form-label">口座</label>
@@ -1908,6 +1915,7 @@ function startEdit(id) {
   }
 
   document.getElementById('em_date').value = e.date;
+  updateModalDateDisplay();
   document.getElementById('em_account').value = e.account;
   document.getElementById('em_type').value = e.type;
   document.getElementById('em_status').value = e.status;
@@ -2013,11 +2021,9 @@ function updateDateDisplay(key) {
 function toggleCustomCal(key) {
   const calId = `customCal_${key}`;
   const cal = document.getElementById(calId);
-  // close any other open calendars
   document.querySelectorAll('.custom-cal').forEach(c => { if (c.id !== calId) c.style.display = 'none'; });
   if (cal.style.display !== 'none') { cal.style.display = 'none'; return; }
-  // init display month
-  const id = key === 'entry' ? 'entryDate' : 'transferDate';
+  const id = key === 'entry' ? 'entryDate' : key === 'transfer' ? 'transferDate' : 'em_date';
   const v = document.getElementById(id).value;
   if (v) {
     const [y, m] = v.split('-').map(Number);
@@ -2032,11 +2038,11 @@ function toggleCustomCal(key) {
 
 function buildCustomCal(key) {
   const { y, m } = calState[key];
-  const id = key === 'entry' ? 'entryDate' : 'transferDate';
+  const id = key === 'entry' ? 'entryDate' : key === 'transfer' ? 'transferDate' : 'em_date';
   const selectedVal = document.getElementById(id).value;
   const todayStr = getTodayStr();
 
-  const firstDay = new Date(y, m - 1, 1).getDay(); // 0=Sun
+  const firstDay = new Date(y, m - 1, 1).getDay();
   const daysInMonth = new Date(y, m, 0).getDate();
   const daysInPrev = new Date(y, m - 1, 0).getDate();
 
@@ -2044,12 +2050,10 @@ function buildCustomCal(key) {
   const dowHtml = DOW.map((d, i) => `<div class="custom-cal-dow" style="${i===0?'color:var(--red)':i===6?'color:var(--accent)':''}">${d}</div>`).join('');
 
   let cells = '';
-  // Prev month trailing days
   for (let i = firstDay - 1; i >= 0; i--) {
     const d = daysInPrev - i;
     cells += `<button class="custom-cal-day other-month" disabled>${d}</button>`;
   }
-  // Current month days
   for (let d = 1; d <= daysInMonth; d++) {
     const dateStr = formatDateVal(y, m, d);
     const dow = new Date(y, m - 1, d).getDay();
@@ -2063,7 +2067,6 @@ function buildCustomCal(key) {
     ].filter(Boolean).join(' ');
     cells += `<button class="${cls}" onclick="event.stopPropagation(); selectCustomDate('${key}','${dateStr}')">${d}</button>`;
   }
-  // Next month leading days
   const totalCells = Math.ceil((firstDay + daysInMonth) / 7) * 7;
   for (let d = 1; d <= totalCells - firstDay - daysInMonth; d++) {
     cells += `<button class="custom-cal-day other-month" disabled>${d}</button>`;
@@ -2088,9 +2091,13 @@ function shiftCalMonth(key, delta) {
 }
 
 function selectCustomDate(key, dateStr) {
-  const id = key === 'entry' ? 'entryDate' : 'transferDate';
+  const id = key === 'entry' ? 'entryDate' : key === 'transfer' ? 'transferDate' : 'em_date';
   document.getElementById(id).value = dateStr;
-  updateDateDisplay(key);
+  if (key === 'modal') {
+    updateModalDateDisplay();
+  } else {
+    updateDateDisplay(key);
+  }
   document.getElementById(`customCal_${key}`).style.display = 'none';
 }
 
@@ -2098,13 +2105,36 @@ function selectCustomDate(key, dateStr) {
 document.addEventListener('click', function(e) {
   document.querySelectorAll('.custom-cal').forEach(cal => {
     const key = cal.id.replace('customCal_', '');
-    const dispId = key === 'entry' ? 'entryDateDisplay' : 'transferDateDisplay';
-    const disp = document.getElementById(dispId);
-    if (!cal.contains(e.target) && e.target !== disp) cal.style.display = 'none';
+    let disp;
+    if (key === 'entry') disp = document.getElementById('entryDateDisplay');
+    else if (key === 'transfer') disp = document.getElementById('transferDateDisplay');
+    else if (key === 'modal') disp = document.getElementById('em_dateDisplay');
+    if (disp && !cal.contains(e.target) && e.target !== disp) cal.style.display = 'none';
   });
 });
 
 // ===== DATE SHIFT FOR FORMS =====
+function updateModalDateDisplay() {
+  const val = document.getElementById('em_date').value;
+  const el = document.getElementById('em_dateDisplay');
+  if (!el) return;
+  if (val) {
+    const [y, m, d] = val.split('-').map(Number);
+    const dow = ['日','月','火','水','木','金','土'][new Date(y, m-1, d).getDay()];
+    el.textContent = `${y}/${String(m).padStart(2,'0')}/${String(d).padStart(2,'0')}（${dow}）`;
+  } else {
+    el.textContent = '日付を選択';
+  }
+}
+
+function shiftModalDate(delta) {
+  const el = document.getElementById('em_date');
+  const v = el.value || getTodayStr();
+  const [y, m, d] = v.split('-').map(Number);
+  const nd = new Date(y, m - 1, d + delta);
+  el.value = formatDateVal(nd.getFullYear(), nd.getMonth() + 1, nd.getDate());
+  updateModalDateDisplay();
+}
 function shiftEntryDate(delta) {
   const el = document.getElementById('entryDate');
   const v = el.value || getTodayStr();
