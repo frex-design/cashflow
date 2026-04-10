@@ -254,6 +254,41 @@
     #printArea td:first-child { position: static; }
   }
 
+  /* ===== 振込バッジアニメーション ===== */
+  @keyframes furikomiDone {
+    0%   { transform: scale(1);    opacity: 1; }
+    30%  { transform: scale(1.25); opacity: 0.7; }
+    60%  { transform: scale(0.9);  opacity: 1; }
+    100% { transform: scale(1);    opacity: 1; }
+  }
+  .furikomi-badge {
+    display: inline-flex; align-items: center; gap: 3px;
+    padding: 3px 9px; border-radius: 4px; font-size: 11px; font-weight: 600;
+    cursor: pointer; transition: all 0.2s; user-select: none;
+  }
+  .furikomi-badge.pending {
+    background: rgba(37,99,235,0.12); color: var(--accent);
+    border: 1px solid rgba(37,99,235,0.25);
+  }
+  .furikomi-badge.pending:hover {
+    background: rgba(37,99,235,0.22);
+  }
+  .furikomi-badge.done {
+    background: rgba(22,163,74,0.12); color: #16a34a;
+    border: 1px solid rgba(22,163,74,0.3);
+    animation: furikomiDone 0.4s ease;
+  }
+  .furikomi-badge.done:hover {
+    background: rgba(22,163,74,0.22);
+  }
+
+  /* ===== 振込ポップアップ ===== */
+  #furikomiPopup {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.35);
+    z-index: 500; display: none; align-items: center; justify-content: center;
+  }
+  #furikomiPopup.open { display: flex; }
+
   /* ===== MISC ===== */
   .empty-state { text-align: center; padding: 40px; color: var(--text3); font-size: 13px; }
   .tag-plan { color: var(--accent); }
@@ -371,7 +406,7 @@
     <button class="btn btn-ghost btn-sm" onclick="openCsvImport()">CSV取込</button>
     <button class="btn btn-ghost btn-sm" onclick="openCsvExport()">CSV出力</button>
     <button class="btn btn-danger btn-sm" onclick="resetAll()">リセット</button>
-    <span id="verLabel" style="font-size:10px;color:var(--text3);font-family:var(--mono);letter-spacing:0.03em;white-space:nowrap;">Ver:20260408_185736</span>
+    <span id="verLabel" style="font-size:10px;color:var(--text3);font-family:var(--mono);letter-spacing:0.03em;white-space:nowrap;">Ver:20260408_190402</span>
   </div>
 </div>
 
@@ -883,6 +918,7 @@
         <select class="form-select" id="em_payMethod">
           <option value="">―</option>
           <option value="振込">振込</option>
+          <option value="振込済">振込済</option>
         </select>
       </div>
     </div>
@@ -923,6 +959,32 @@
     </div>
   </div>
 </div>
+<!-- ===== 振込ポップアップ ===== -->
+<div id="furikomiPopup">
+  <div style="background:#fff;border-radius:12px;padding:24px;width:320px;box-shadow:0 8px 40px rgba(0,0,0,0.18);">
+    <div style="font-size:15px;font-weight:600;color:var(--text);margin-bottom:4px;" id="furikomiPopupTitle">振込確認</div>
+    <div style="font-size:12px;color:var(--text3);margin-bottom:16px;" id="furikomiPopupDesc"></div>
+    <div style="display:flex;flex-direction:column;gap:8px;">
+      <button onclick="doFurikomiAction('振込済')"
+        style="padding:10px;background:rgba(22,163,74,0.1);color:#16a34a;border:1px solid rgba(22,163,74,0.3);border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:var(--sans);">
+        ✅ 振込済にする
+      </button>
+      <button onclick="doFurikomiAction('振込')"
+        style="padding:10px;background:rgba(37,99,235,0.08);color:var(--accent);border:1px solid rgba(37,99,235,0.25);border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:var(--sans);">
+        🏦 振込（未済）に戻す
+      </button>
+      <button onclick="doFurikomiAction('')"
+        style="padding:10px;background:var(--bg2);color:var(--text3);border:1px solid var(--border);border-radius:8px;font-size:13px;cursor:pointer;font-family:var(--sans);">
+        ― 振込区分を外す
+      </button>
+    </div>
+    <button onclick="closeFurikomiPopup()"
+      style="margin-top:12px;width:100%;padding:8px;background:transparent;color:var(--text3);border:none;font-size:13px;cursor:pointer;font-family:var(--sans);">
+      キャンセル
+    </button>
+  </div>
+</div>
+
 <!-- ===== CSV EXPORT MODAL ===== -->
 <div id="csvExportModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.35); z-index:200; align-items:center; justify-content:center;">
   <div style="background:#fff; border-radius:12px; padding:28px; width:480px; max-width:95vw; box-shadow:0 8px 40px rgba(0,0,0,0.18);">
@@ -1343,7 +1405,7 @@ function renderFurikomiList() {
   const twoDaysLater = `${d2.getFullYear()}-${String(d2.getMonth()+1).padStart(2,'0')}-${String(d2.getDate()).padStart(2,'0')}`;
 
   const hits = entries.filter(e =>
-    e.payMethod === '振込' &&
+    (e.payMethod === '振込' || e.payMethod === '振込済') &&
     e.date >= today &&
     e.date <= twoDaysLater &&
     !e.isTransfer && !e.isCard
@@ -1363,11 +1425,15 @@ function renderFurikomiList() {
     const dateLabel = isToday ? '今日' : e.date === twoDaysLater ? '2日後' : '明日';
     const dateBg = isToday ? 'rgba(220,38,38,0.1)' : 'rgba(217,119,6,0.08)';
     const dateColor = isToday ? 'var(--red)' : 'var(--yellow)';
+    const isDone = e.payMethod === '振込済';
     return `
-      <div style="padding:8px 10px; background:var(--bg3); border:1px solid var(--border); border-radius:6px; margin-bottom:5px;">
+      <div onclick="toggleFurikomi(${e.id})" style="padding:8px 10px; background:${isDone?'rgba(22,163,74,0.06)':'var(--bg3)'}; border:1px solid ${isDone?'rgba(22,163,74,0.3)':'var(--border)'}; border-radius:6px; margin-bottom:5px; cursor:pointer; transition:all 0.15s;" onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:3px;">
           <span style="font-size:10px; font-weight:600; padding:1px 6px; border-radius:3px; background:${dateBg}; color:${dateColor};">${dateLabel}</span>
-          <span style="font-size:11px; font-family:var(--mono); color:var(--red); font-weight:600;">${fmt(e.amount)}</span>
+          <div style="display:flex;align-items:center;gap:5px;">
+            ${isDone ? '<span style="font-size:10px;color:#16a34a;font-weight:600;">✅ 振込済</span>' : '<span style="font-size:10px;color:var(--accent);font-weight:600;">🏦 振込</span>'}
+            <span style="font-size:11px; font-family:var(--mono); color:var(--red); font-weight:600;">${fmt(e.amount)}</span>
+          </div>
         </div>
         <div style="font-size:12px; color:var(--text); font-weight:500;">${e.partner || '（取引先未設定）'}</div>
         ${e.desc ? `<div style="font-size:11px; color:var(--text3); margin-top:1px;">${e.desc}</div>` : ''}
@@ -1767,9 +1833,13 @@ function renderDailyTable() {
         <td class="mono text-right pos-val">${e.type==='in' ? fmt(e.amount) : ''}</td>
         <td class="mono text-right neg-val">${e.type==='out' ? fmt(e.amount) : ''}</td>
         <td class="text-right">${balHtml}</td>
-        <td class="text-center">${e.payMethod === '振込'
-          ? `<span style="display:inline-flex;align-items:center;gap:3px;padding:3px 9px;border-radius:4px;font-size:11px;font-weight:600;background:rgba(37,99,235,0.12);color:var(--accent);border:1px solid rgba(37,99,235,0.25);">🏦 振込</span>`
-          : ''}</td>
+        <td class="text-center">${
+          e.payMethod === '振込'
+            ? `<span class="furikomi-badge pending" onclick="toggleFurikomi(${e.id})" title="クリックで振込済にする">🏦 振込</span>`
+            : e.payMethod === '振込済'
+            ? `<span class="furikomi-badge done" onclick="toggleFurikomi(${e.id})" title="クリックで振込に戻す">✅ 振込済</span>`
+            : ''
+        }</td>
         <td>${actionBtns}</td>
       </tr>`);
   });
@@ -2238,6 +2308,38 @@ async function addTransfer() {
 }
 
 // ===== DELETE WITH CONFIRM =====
+// ===== 振込バッジ操作 =====
+let furikomiTargetId = null;
+
+async function toggleFurikomi(id) {
+  const e = entries.find(e => e.id === id);
+  if (!e) return;
+  furikomiTargetId = id;
+  // ポップアップで内容表示
+  document.getElementById('furikomiPopupTitle').textContent =
+    e.payMethod === '振込' ? '振込済にしますか？' : '振込ステータスを変更';
+  document.getElementById('furikomiPopupDesc').textContent =
+    `${e.date}　${e.partner || '（取引先未設定）'}　${fmt(e.amount)}`;
+  document.getElementById('furikomiPopup').classList.add('open');
+}
+
+async function doFurikomiAction(newPayMethod) {
+  if (furikomiTargetId === null) return;
+  const idx = entries.findIndex(e => e.id === furikomiTargetId);
+  if (idx === -1) return;
+  entries[idx].payMethod = newPayMethod;
+  closeFurikomiPopup();
+  await save();
+  renderDailyTable();
+  renderSalesTicker();
+  updateAlerts();
+}
+
+function closeFurikomiPopup() {
+  document.getElementById('furikomiPopup').classList.remove('open');
+  furikomiTargetId = null;
+}
+
 function askDelete(id) {
   const area = document.getElementById('act_' + id);
   if (!area) return;
