@@ -406,7 +406,7 @@
     <button class="btn btn-ghost btn-sm" onclick="openCsvImport()">CSV取込</button>
     <button class="btn btn-ghost btn-sm" onclick="openCsvExport()">CSV出力</button>
     <button class="btn btn-danger btn-sm" onclick="resetAll()">リセット</button>
-    <span id="verLabel" style="font-size:10px;color:var(--text3);font-family:var(--mono);letter-spacing:0.03em;white-space:nowrap;">Ver:20260408_190402</span>
+    <span id="verLabel" style="font-size:10px;color:var(--text3);font-family:var(--mono);letter-spacing:0.03em;white-space:nowrap;">Ver:20260410_200619</span>
   </div>
 </div>
 
@@ -425,7 +425,7 @@
     <!-- 振込予定リスト -->
     <div class="sidebar-section" id="furikomiSection">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-        <div class="sidebar-section-title" style="margin-bottom:0;">📋 振込予定（今日〜2日後）</div>
+        <div class="sidebar-section-title" style="margin-bottom:0;">📋 振込予定（今日〜1週間後）</div>
       </div>
       <div id="furikomiList"><div style="font-size:12px;color:var(--text3);">振込予定はありません</div></div>
     </div>
@@ -1400,8 +1400,8 @@ function renderAll() {
 // ===== FURIKOMI LIST =====
 function renderFurikomiList() {
   const today = getTodayStr();
-  // 2日後の日付を文字列で計算
-  const d2 = new Date(); d2.setDate(d2.getDate() + 2);
+  // 1週間後の日付を文字列で計算
+  const d2 = new Date(); d2.setDate(d2.getDate() + 7);
   const twoDaysLater = `${d2.getFullYear()}-${String(d2.getMonth()+1).padStart(2,'0')}-${String(d2.getDate()).padStart(2,'0')}`;
 
   const hits = entries.filter(e =>
@@ -1422,9 +1422,10 @@ function renderFurikomiList() {
   el.innerHTML = hits.map(e => {
     const acct = ACCOUNTS.find(a => a.id === e.account);
     const isToday = e.date === today;
-    const dateLabel = isToday ? '今日' : e.date === twoDaysLater ? '2日後' : '明日';
-    const dateBg = isToday ? 'rgba(220,38,38,0.1)' : 'rgba(217,119,6,0.08)';
-    const dateColor = isToday ? 'var(--red)' : 'var(--yellow)';
+    const diffDays = Math.round((new Date(e.date) - new Date(today)) / 86400000);
+    const dateLabel = diffDays === 0 ? '今日' : diffDays === 1 ? '明日' : diffDays === 2 ? '明後日' : `${diffDays}日後`;
+    const dateBg = isToday ? 'rgba(220,38,38,0.1)' : diffDays <= 2 ? 'rgba(217,119,6,0.08)' : 'rgba(79,156,249,0.08)';
+    const dateColor = isToday ? 'var(--red)' : diffDays <= 2 ? 'var(--yellow)' : 'var(--accent)';
     const isDone = e.payMethod === '振込済';
     return `
       <div onclick="toggleFurikomi(${e.id})" style="padding:8px 10px; background:${isDone?'rgba(22,163,74,0.06)':'var(--bg3)'}; border:1px solid ${isDone?'rgba(22,163,74,0.3)':'var(--border)'}; border-radius:6px; margin-bottom:5px; cursor:pointer; transition:all 0.15s;" onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'">
