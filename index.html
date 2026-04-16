@@ -350,8 +350,32 @@
   .calc-icon-btn:hover { background: #2563eb; color: #fff; border-color: #2563eb; }
   .calc-icon-btn svg { width: 16px; height: 16px; }
 
-  /* ===== MISC ===== */
+  /* ===== 行オーバービュー ===== */
+  #rowOverview {
+    position: fixed; z-index: 800; pointer-events: none;
+    background: #1a2236; border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 10px; padding: 10px 14px; min-width: 200px; max-width: 300px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+    opacity: 0; transform: translateY(4px);
+    transition: opacity 0.1s ease, transform 0.1s ease;
+    font-size: 12px; line-height: 1.6;
+  }
+  #rowOverview.show { opacity: 1; transform: translateY(0); }
+  #rowOverview .ov-date { font-size: 10px; color: #7a90b0; margin-bottom: 3px; font-family: var(--mono); }
+  #rowOverview .ov-acct { display:flex;align-items:center;gap:5px;font-size:11px;color:#a0b4cc;margin-bottom:5px; }
+  #rowOverview .ov-partner { font-size:13px;font-weight:700;color:#e0e8f4;margin-bottom:1px; }
+  #rowOverview .ov-desc { font-size:11px;color:#8aa0bc;margin-bottom:5px; }
+  #rowOverview .ov-row { display:flex;justify-content:space-between;align-items:center;gap:12px; }
+  #rowOverview .ov-cat { font-size:10px;color:#5a7a9a;padding:1px 6px;background:rgba(255,255,255,0.06);border-radius:3px; }
+  #rowOverview .ov-amount { font-size:15px;font-weight:700;font-family:var(--mono); }
+  #rowOverview .ov-in  { color:#4ade80; }
+  #rowOverview .ov-out { color:#f87171; }
+  #rowOverview .ov-status.confirmed { background:rgba(74,222,128,0.12);color:#4ade80;font-size:10px;padding:1px 6px;border-radius:3px; }
+  #rowOverview .ov-status.plan { background:rgba(251,191,36,0.12);color:#fbbf24;font-size:10px;padding:1px 6px;border-radius:3px; }
+  #rowOverview hr { border:none;border-top:1px solid rgba(255,255,255,0.06);margin:5px 0; }
+  #rowOverview .ov-pay { font-size:10px;color:#60a5fa;margin-top:2px; }
 
+  /* ===== MISC ===== */
   /* ===== MISC ===== */
   .empty-state { text-align: center; padding: 40px; color: var(--text3); font-size: 13px; }
   .tag-plan { color: var(--accent); }
@@ -469,7 +493,7 @@
     <button class="btn btn-ghost btn-sm" onclick="openCsvImport()">CSV取込</button>
     <button class="btn btn-ghost btn-sm" onclick="openCsvExport()">CSV出力</button>
     <button class="btn btn-danger btn-sm" onclick="resetAll()">リセット</button>
-    <span id="verLabel" style="font-size:10px;color:var(--text3);font-family:var(--mono);letter-spacing:0.03em;white-space:nowrap;">Ver:20260416_154517</span>
+    <span id="verLabel" style="font-size:10px;color:var(--text3);font-family:var(--mono);letter-spacing:0.03em;white-space:nowrap;">Ver:20260416_160035</span>
   </div>
 </div>
 
@@ -1021,6 +1045,9 @@
     </div>
   </div>
 </div>
+<!-- ===== 行オーバービュー ===== -->
+<div id="rowOverview"></div>
+
 <!-- ===== 電卓ポップアップ ===== -->
 <div id="calcPopup">
   <div class="calc-wrap">
@@ -1919,7 +1946,19 @@ function renderDailyTable() {
 
     rows.push(`
       <tr class="${isTransfer?'row-transfer':''} ${isCard?'row-card':''}" style="${rowStyle}"
-          draggable="true" data-id="${e.id}" data-date="${e.date}">
+          draggable="true" data-id="${e.id}" data-date="${e.date}"
+          data-partner="${(e.partner||'').replace(/"/g,'&quot;')}"
+          data-desc="${(e.desc||'').replace(/"/g,'&quot;')}"
+          data-category="${(e.category||'').replace(/"/g,'&quot;')}"
+          data-amount="${e.amount}"
+          data-type="${e.type}"
+          data-status="${e.status}"
+          data-acct="${acct?.name||e.account}"
+          data-acct-color="${acct?.color||'#999'}"
+          data-pay="${e.payMethod||''}"
+          onmouseenter="showRowOverview(event,this)"
+          onmouseleave="hideRowOverview()"
+          onmousemove="moveRowOverview(event)">
         <td style="text-align:center;padding:0 2px;width:20px;">
           <span class="drag-handle" title="並び替え">⠿</span>
         </td>
@@ -1947,7 +1986,8 @@ function renderDailyTable() {
       </tr>`);
   });
 
-  document.getElementById('dailyTableBody').innerHTML = rows.join('');
+  const tbody = document.getElementById('dailyTableBody');
+  tbody.innerHTML = rows.join('');
   initDragDrop();
 
   // 表示中データの入金・出金合計を集計してサマリーバーに反映
@@ -1969,6 +2009,59 @@ function renderDailyTable() {
       monthLabelEl.textContent = '';
     }
   }
+}
+
+// ===== 行オーバービュー =====
+let _ovTimer = null;
+const _ov = () => document.getElementById('rowOverview');
+
+function showRowOverview(e, tr) {
+  clearTimeout(_ovTimer);
+  _ovTimer = setTimeout(() => {
+    const d = tr.dataset;
+    const isIn  = d.type === 'in';
+    const isOut = d.type === 'out';
+    const amt = Number(d.amount);
+    const fmtAmt = '¥' + amt.toLocaleString('ja-JP');
+    const payHtml = d.pay ? `<div class="ov-pay">${d.pay === '振込済' ? '✅ 振込済' : '🏦 振込'}</div>` : '';
+
+    _ov().innerHTML = `
+      <div class="ov-date">${d.date}</div>
+      <div class="ov-acct">
+        <span style="width:6px;height:6px;border-radius:50%;background:${d.acctColor};flex-shrink:0;display:inline-block;"></span>
+        ${d.acct}
+      </div>
+      ${d.partner ? `<div class="ov-partner">${d.partner}</div>` : ''}
+      ${d.desc    ? `<div class="ov-desc">${d.desc}</div>` : ''}
+      <hr>
+      <div class="ov-row">
+        <span class="ov-cat">${d.category||'―'}</span>
+        <span class="ov-amount ${isIn?'ov-in':'ov-out'}">${isIn?'+':'-'}${fmtAmt}</span>
+      </div>
+      <div class="ov-row" style="margin-top:4px;">
+        <span class="ov-status ${d.status}">${d.status==='confirmed'?'確定':'予定'}</span>
+        ${payHtml}
+      </div>`;
+
+    _ov().classList.add('show');
+    moveRowOverview(e);
+  }, 120); // 120ms遅延でスクロール時に出ない
+}
+
+function hideRowOverview() {
+  clearTimeout(_ovTimer);
+  _ov().classList.remove('show');
+}
+
+function moveRowOverview(e) {
+  const ov = _ov();
+  const W = window.innerWidth, H = window.innerHeight;
+  const ow = ov.offsetWidth || 240, oh = ov.offsetHeight || 140;
+  let x = e.clientX + 16, y = e.clientY + 16;
+  if (x + ow > W - 8) x = e.clientX - ow - 8;
+  if (y + oh > H - 8) y = e.clientY - oh - 8;
+  ov.style.left = x + 'px';
+  ov.style.top  = y + 'px';
 }
 
 // ===== DRAG AND DROP =====
