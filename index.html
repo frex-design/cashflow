@@ -146,10 +146,10 @@
   table { width: 100%; border-collapse: collapse; }
   thead { background: var(--bg3); }
   th { padding: 10px 12px; text-align: left; font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text3); border-bottom: 1px solid var(--border); white-space: nowrap; }
-  td { padding: 9px 12px; border-bottom: 1px solid var(--border); font-size: 13px; vertical-align: middle; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  td.mono { white-space: nowrap; max-width: none; }
-  td.text-right { white-space: nowrap; max-width: none; }
-  td.text-center { white-space: nowrap; max-width: none; }
+  td { padding: 6px 10px; border-bottom: 1px solid var(--border); font-size: 12px; vertical-align: middle; white-space: nowrap; }
+  td.mono { white-space: nowrap; }
+  td.text-right { white-space: nowrap; }
+  td.text-center { white-space: nowrap; }
   tr:last-child td { border-bottom: none; }
   tr:hover td { background: rgba(37,99,235,0.03); }
   .mono { font-family: var(--mono); font-size: 13px; }
@@ -292,6 +292,53 @@
   }
   #furikomiPopup.open { display: flex; }
 
+  /* ===== 電卓ポップアップ ===== */
+  #calcPopup {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.35);
+    z-index: 600; display: none; align-items: center; justify-content: center;
+  }
+  #calcPopup.open { display: flex; }
+  .calc-wrap {
+    background: #1a2236; border-radius: 16px; padding: 20px;
+    width: 280px; box-shadow: 0 12px 48px rgba(0,0,0,0.4);
+  }
+  .calc-display {
+    background: #0d1526; border-radius: 10px; padding: 12px 16px;
+    margin-bottom: 14px; text-align: right;
+  }
+  .calc-expr {
+    font-size: 12px; color: #5a7a9a; font-family: var(--mono);
+    min-height: 18px; margin-bottom: 4px; overflow: hidden;
+    text-overflow: ellipsis; white-space: nowrap;
+  }
+  .calc-value {
+    font-size: 28px; font-weight: 700; color: #fff;
+    font-family: var(--mono); min-height: 38px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .calc-grid {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;
+  }
+  .calc-btn {
+    padding: 14px 8px; border: none; border-radius: 10px;
+    font-size: 16px; font-weight: 600; cursor: pointer;
+    font-family: var(--sans); transition: all 0.1s; line-height: 1;
+  }
+  .calc-btn:active { transform: scale(0.93); }
+  .calc-btn.num  { background: #253045; color: #e0e8f0; }
+  .calc-btn.num:hover  { background: #2e3d57; }
+  .calc-btn.op   { background: #2a3f6a; color: #7eb3f5; }
+  .calc-btn.op:hover   { background: #344d80; }
+  .calc-btn.eq   { background: var(--accent); color: #fff; }
+  .calc-btn.eq:hover   { background: #1a4fd6; }
+  .calc-btn.clr  { background: #3d1f1f; color: #f87171; }
+  .calc-btn.clr:hover  { background: #4d2525; }
+  .calc-btn.go   { background: #16a34a; color: #fff; font-size: 14px; grid-column: span 2; }
+  .calc-btn.go:hover   { background: #15803d; }
+  .calc-btn.cancel { background: #253045; color: #7a8fa8; font-size: 13px; grid-column: span 2; }
+  .calc-btn.cancel:hover { background: #2e3d57; }
+  .calc-btn.zero { grid-column: span 2; }
+
   /* ===== MISC ===== */
   .empty-state { text-align: center; padding: 40px; color: var(--text3); font-size: 13px; }
   .tag-plan { color: var(--accent); }
@@ -409,7 +456,7 @@
     <button class="btn btn-ghost btn-sm" onclick="openCsvImport()">CSV取込</button>
     <button class="btn btn-ghost btn-sm" onclick="openCsvExport()">CSV出力</button>
     <button class="btn btn-danger btn-sm" onclick="resetAll()">リセット</button>
-    <span id="verLabel" style="font-size:10px;color:var(--text3);font-family:var(--mono);letter-spacing:0.03em;white-space:nowrap;">Ver:20260416_150022</span>
+    <span id="verLabel" style="font-size:10px;color:var(--text3);font-family:var(--mono);letter-spacing:0.03em;white-space:nowrap;">Ver:20260416_150444</span>
   </div>
 </div>
 
@@ -561,7 +608,7 @@
             </div>
             <div class="form-group">
               <label class="form-label">金額（円）</label>
-              <input type="number" class="form-input" id="entryAmount" placeholder="0">
+              <div style="display:flex;gap:4px;"><input type="text" inputmode="numeric" class="form-input" id="entryAmount" placeholder="0" style="flex:1;"><button type="button" onclick="openCalc('entryAmount')" style="padding:0 10px;border:1px solid var(--border);border-radius:5px;background:var(--bg3);color:var(--text2);cursor:pointer;font-size:16px;white-space:nowrap;" title="電卓">🖩</button></div>
             </div>
             <div class="form-group">
               <label class="form-label">取引先</label>
@@ -645,7 +692,7 @@
           <div style="display:grid; grid-template-columns:160px 1fr auto; gap:8px; align-items:end;">
             <div class="form-group">
               <label class="form-label">金額（円）</label>
-              <input type="number" class="form-input" id="transferAmount" placeholder="0">
+              <div style="display:flex;gap:4px;"><input type="text" inputmode="numeric" class="form-input" id="transferAmount" placeholder="0" style="flex:1;"><button type="button" onclick="openCalc('transferAmount')" style="padding:0 10px;border:1px solid var(--border);border-radius:5px;background:var(--bg3);color:var(--text2);cursor:pointer;font-size:16px;white-space:nowrap;" title="電卓">🖩</button></div>
             </div>
             <div class="form-group">
               <label class="form-label">摘要（任意）</label>
@@ -914,7 +961,7 @@
     <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px;">
       <div class="form-group">
         <label class="form-label">金額（円）</label>
-        <input type="number" class="form-input" id="em_amount">
+        <div style="display:flex;gap:4px;"><input type="text" inputmode="numeric" class="form-input" id="em_amount" placeholder="0" style="flex:1;"><button type="button" onclick="openCalc('em_amount')" style="padding:0 10px;border:1px solid var(--border);border-radius:5px;background:var(--bg3);color:var(--text2);cursor:pointer;font-size:16px;white-space:nowrap;" title="電卓">🖩</button></div>
       </div>
       <div class="form-group">
         <label class="form-label">支払方法</label>
@@ -962,6 +1009,44 @@
     </div>
   </div>
 </div>
+<!-- ===== 電卓ポップアップ ===== -->
+<div id="calcPopup">
+  <div class="calc-wrap">
+    <div class="calc-display">
+      <div class="calc-expr" id="calcExpr"></div>
+      <div class="calc-value" id="calcValue">0</div>
+    </div>
+    <div class="calc-grid">
+      <button class="calc-btn clr" onclick="calcClear()">C</button>
+      <button class="calc-btn op"  onclick="calcDel()">⌫</button>
+      <button class="calc-btn op"  onclick="calcOp('%')">%</button>
+      <button class="calc-btn op"  onclick="calcOp('÷')">÷</button>
+
+      <button class="calc-btn num" onclick="calcNum('7')">7</button>
+      <button class="calc-btn num" onclick="calcNum('8')">8</button>
+      <button class="calc-btn num" onclick="calcNum('9')">9</button>
+      <button class="calc-btn op"  onclick="calcOp('×')">×</button>
+
+      <button class="calc-btn num" onclick="calcNum('4')">4</button>
+      <button class="calc-btn num" onclick="calcNum('5')">5</button>
+      <button class="calc-btn num" onclick="calcNum('6')">6</button>
+      <button class="calc-btn op"  onclick="calcOp('−')">−</button>
+
+      <button class="calc-btn num" onclick="calcNum('1')">1</button>
+      <button class="calc-btn num" onclick="calcNum('2')">2</button>
+      <button class="calc-btn num" onclick="calcNum('3')">3</button>
+      <button class="calc-btn op"  onclick="calcOp('+')">+</button>
+
+      <button class="calc-btn num zero" onclick="calcNum('0')">0</button>
+      <button class="calc-btn num" onclick="calcNum('.')">.</button>
+      <button class="calc-btn eq"  onclick="calcEqual()">=</button>
+
+      <button class="calc-btn go"     onclick="calcGo()">✅ GO</button>
+      <button class="calc-btn cancel" onclick="calcClose()">キャンセル</button>
+    </div>
+  </div>
+</div>
+
 <!-- ===== 振込ポップアップ ===== -->
 <div id="furikomiPopup">
   <div style="background:#fff;border-radius:12px;padding:24px;width:320px;box-shadow:0 8px 40px rgba(0,0,0,0.18);">
@@ -1957,7 +2042,8 @@ function buildEditRow(e) {
             <option value="in" ${e.type==='in'?'selected':''}>入金</option>
             <option value="out" ${e.type==='out'?'selected':''}>出金</option>
           </select>
-          <input type="number" id="ei_amount" value="${e.amount}" style="width:120px;">
+          <input type="text" inputmode="numeric" id="ei_amount" value="${e.amount}" style="width:100px;">
+          <button type="button" onclick="openCalc('ei_amount')" style="padding:0 8px;border:1px solid var(--border);border-radius:5px;background:var(--bg3);color:var(--text2);cursor:pointer;font-size:15px;" title="電卓">🖩</button>
         </div>
       </td>
       <td></td>
@@ -2011,7 +2097,7 @@ async function saveEditModal() {
   const idx = entries.findIndex(e => e.id === editingModalId);
   if (idx === -1) return;
   const date = document.getElementById('em_date').value;
-  const amount = parseFloat(document.getElementById('em_amount').value);
+  const amount = parseFloat(document.getElementById('em_amount').value.replace(/[^0-9.]/g,''));
   if (!date || isNaN(amount) || amount < 0) { alert('日付・金額は必須です'); return; }
 
   const original = entries[idx];
@@ -2069,7 +2155,7 @@ async function saveEdit(id) {
   const desc = document.getElementById('ei_desc').value;
   const category = document.getElementById('ei_category').value;
   const type = document.getElementById('ei_type').value;
-  const amount = parseFloat(document.getElementById('ei_amount').value);
+  const amount = parseFloat(document.getElementById('ei_amount').value.replace(/[^0-9.]/g,''));
   if (!date || isNaN(amount) || amount < 0) { alert('日付・金額は必須です'); return; }
   entries[idx] = { ...entries[idx], date, account, status, partner, desc, category, type, amount };
   editingId = null;
@@ -2276,7 +2362,7 @@ async function submitEntry() {
   const account = document.getElementById('entryAccount').value;
   const type = document.getElementById('entryType').value;
   const status = document.getElementById('entryStatus').value;
-  const amount = parseFloat(document.getElementById('entryAmount').value);
+  const amount = parseFloat(document.getElementById('entryAmount').value.replace(/[^0-9.]/g,''));
   const partner = document.getElementById('entryPartner').value;
   const desc = document.getElementById('entryDesc').value;
   const category = document.getElementById('entryCategory').value;
@@ -2312,7 +2398,7 @@ async function addTransfer() {
   const date = document.getElementById('transferDate').value;
   const fromId = document.getElementById('transferFrom').value;
   const toId = document.getElementById('transferTo').value;
-  const amount = parseFloat(document.getElementById('transferAmount').value);
+  const amount = parseFloat(document.getElementById('transferAmount').value.replace(/[^0-9.]/g,''));
   const status = document.getElementById('transferStatus').value;
   const desc = document.getElementById('transferDesc').value || '資金移動';
 
@@ -2339,6 +2425,96 @@ async function addTransfer() {
 }
 
 // ===== DELETE WITH CONFIRM =====
+// ===== 電卓 =====
+let calcTargetId = null;
+let calcCurrent  = '0';
+let calcExprStr  = '';
+let calcHasResult = false;
+
+function openCalc(targetId) {
+  calcTargetId  = targetId;
+  calcCurrent   = '0';
+  calcExprStr   = '';
+  calcHasResult = false;
+  // 現在の入力値を初期値にセット
+  const el = document.getElementById(targetId);
+  if (el && el.value && !isNaN(parseFloat(el.value))) {
+    calcCurrent = String(parseFloat(el.value));
+  }
+  updateCalcDisplay();
+  document.getElementById('calcPopup').classList.add('open');
+}
+
+function calcClose() {
+  document.getElementById('calcPopup').classList.remove('open');
+  calcTargetId = null;
+}
+
+function updateCalcDisplay() {
+  document.getElementById('calcExpr').textContent  = calcExprStr;
+  // 3桁カンマ表示
+  const num = parseFloat(calcCurrent);
+  document.getElementById('calcValue').textContent =
+    isNaN(num) ? calcCurrent : num.toLocaleString('ja-JP');
+}
+
+function calcNum(n) {
+  if (calcHasResult) { calcCurrent = '0'; calcExprStr = ''; calcHasResult = false; }
+  if (n === '.') {
+    if (calcCurrent.includes('.')) return;
+    calcCurrent += '.';
+  } else {
+    calcCurrent = calcCurrent === '0' ? n : calcCurrent + n;
+  }
+  updateCalcDisplay();
+}
+
+function calcOp(op) {
+  calcExprStr = (calcExprStr || calcCurrent) + ' ' + op + ' ';
+  calcCurrent = '0';
+  calcHasResult = false;
+  updateCalcDisplay();
+}
+
+function calcEqual() {
+  if (!calcExprStr) return;
+  const expr = (calcExprStr + calcCurrent)
+    .replace(/÷/g, '/').replace(/×/g, '*').replace(/−/g, '-');
+  try {
+    // %対応
+    const result = Function('"use strict"; return (' + expr.replace(/(\d+)%/g, '($1/100)') + ')')();
+    calcExprStr = (calcExprStr + calcCurrent) + ' =';
+    calcCurrent = String(Math.round(result * 10000) / 10000);
+    calcHasResult = true;
+  } catch(e) {
+    calcCurrent = 'エラー';
+  }
+  updateCalcDisplay();
+}
+
+function calcClear() {
+  calcCurrent = '0'; calcExprStr = ''; calcHasResult = false;
+  updateCalcDisplay();
+}
+
+function calcDel() {
+  if (calcHasResult) { calcClear(); return; }
+  calcCurrent = calcCurrent.length > 1 ? calcCurrent.slice(0, -1) : '0';
+  updateCalcDisplay();
+}
+
+function calcGo() {
+  if (!calcTargetId) return;
+  // =を押していない場合は計算を実行
+  if (!calcHasResult && calcExprStr) calcEqual();
+  const val = parseFloat(calcCurrent);
+  if (!isNaN(val)) {
+    const el = document.getElementById(calcTargetId);
+    if (el) el.value = val;
+  }
+  calcClose();
+}
+
 // ===== 振込バッジ操作 =====
 let furikomiTargetId = null;
 
