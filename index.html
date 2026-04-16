@@ -146,7 +146,10 @@
   table { width: 100%; border-collapse: collapse; }
   thead { background: var(--bg3); }
   th { padding: 10px 12px; text-align: left; font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text3); border-bottom: 1px solid var(--border); white-space: nowrap; }
-  td { padding: 9px 12px; border-bottom: 1px solid var(--border); font-size: 13px; vertical-align: middle; }
+  td { padding: 9px 12px; border-bottom: 1px solid var(--border); font-size: 13px; vertical-align: middle; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  td.mono { white-space: nowrap; max-width: none; }
+  td.text-right { white-space: nowrap; max-width: none; }
+  td.text-center { white-space: nowrap; max-width: none; }
   tr:last-child td { border-bottom: none; }
   tr:hover td { background: rgba(37,99,235,0.03); }
   .mono { font-family: var(--mono); font-size: 13px; }
@@ -406,7 +409,7 @@
     <button class="btn btn-ghost btn-sm" onclick="openCsvImport()">CSV取込</button>
     <button class="btn btn-ghost btn-sm" onclick="openCsvExport()">CSV出力</button>
     <button class="btn btn-danger btn-sm" onclick="resetAll()">リセット</button>
-    <span id="verLabel" style="font-size:10px;color:var(--text3);font-family:var(--mono);letter-spacing:0.03em;white-space:nowrap;">Ver:20260416_145355</span>
+    <span id="verLabel" style="font-size:10px;color:var(--text3);font-family:var(--mono);letter-spacing:0.03em;white-space:nowrap;">Ver:20260416_150022</span>
   </div>
 </div>
 
@@ -1828,9 +1831,9 @@ function renderDailyTable() {
           ${acct?.name||e.account}
         </span></td>
         <td>${badgeHtml}</td>
-        <td>${e.partner||'-'}</td>
-        <td>${e.desc||'-'}</td>
-        <td style="color:var(--text3)">${e.category||''}</td>
+        <td title="${e.partner||''}">${e.partner||'-'}</td>
+        <td title="${e.desc||''}">${e.desc||'-'}</td>
+        <td style="color:var(--text3)" title="${e.category||''}">${e.category||''}</td>
         <td class="mono text-right pos-val">${e.type==='in' ? fmt(e.amount) : ''}</td>
         <td class="mono text-right neg-val">${e.type==='out' ? fmt(e.amount) : ''}</td>
         <td class="text-right">${balHtml}</td>
