@@ -353,27 +353,29 @@
   /* ===== 行オーバービュー ===== */
   #rowOverview {
     position: fixed; z-index: 800; pointer-events: none;
-    background: #1a2236; border: 1px solid rgba(255,255,255,0.08);
-    border-radius: 10px; padding: 10px 14px; min-width: 200px; max-width: 300px;
-    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
-    opacity: 0; transform: translateY(4px);
-    transition: opacity 0.1s ease, transform 0.1s ease;
-    font-size: 12px; line-height: 1.6;
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: 8px; padding: 8px 12px; min-width: 180px; max-width: 260px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+    opacity: 0; transform: translateY(3px);
+    transition: opacity 0.08s ease, transform 0.08s ease;
+    font-size: 12px; line-height: 1.5;
   }
   #rowOverview.show { opacity: 1; transform: translateY(0); }
-  #rowOverview .ov-date { font-size: 10px; color: #7a90b0; margin-bottom: 3px; font-family: var(--mono); }
-  #rowOverview .ov-acct { display:flex;align-items:center;gap:5px;font-size:11px;color:#a0b4cc;margin-bottom:5px; }
-  #rowOverview .ov-partner { font-size:13px;font-weight:700;color:#e0e8f4;margin-bottom:1px; }
-  #rowOverview .ov-desc { font-size:11px;color:#8aa0bc;margin-bottom:5px; }
-  #rowOverview .ov-row { display:flex;justify-content:space-between;align-items:center;gap:12px; }
-  #rowOverview .ov-cat { font-size:10px;color:#5a7a9a;padding:1px 6px;background:rgba(255,255,255,0.06);border-radius:3px; }
-  #rowOverview .ov-amount { font-size:15px;font-weight:700;font-family:var(--mono); }
-  #rowOverview .ov-in  { color:#4ade80; }
-  #rowOverview .ov-out { color:#f87171; }
-  #rowOverview .ov-status.confirmed { background:rgba(74,222,128,0.12);color:#4ade80;font-size:10px;padding:1px 6px;border-radius:3px; }
-  #rowOverview .ov-status.plan { background:rgba(251,191,36,0.12);color:#fbbf24;font-size:10px;padding:1px 6px;border-radius:3px; }
-  #rowOverview hr { border:none;border-top:1px solid rgba(255,255,255,0.06);margin:5px 0; }
-  #rowOverview .ov-pay { font-size:10px;color:#60a5fa;margin-top:2px; }
+  #rowOverview .ov-top { display:flex; justify-content:space-between; align-items:center; margin-bottom:4px; }
+  #rowOverview .ov-date { font-size:10px; color:var(--text3); font-family:var(--mono); }
+  #rowOverview .ov-acct { display:flex;align-items:center;gap:4px;font-size:10px;color:var(--text3); }
+  #rowOverview .ov-partner { font-size:12px;font-weight:600;color:var(--text);margin-bottom:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
+  #rowOverview .ov-desc { font-size:11px;color:var(--text2);margin-bottom:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
+  #rowOverview .ov-bottom { display:flex;justify-content:space-between;align-items:center;gap:8px; }
+  #rowOverview .ov-cat { font-size:10px;color:var(--text3);padding:1px 5px;background:var(--bg3);border:1px solid var(--border);border-radius:3px;white-space:nowrap; }
+  #rowOverview .ov-amount { font-size:14px;font-weight:700;font-family:var(--mono); }
+  #rowOverview .ov-in  { color:var(--green); }
+  #rowOverview .ov-out { color:var(--red); }
+  #rowOverview .ov-badges { display:flex;gap:4px;align-items:center;margin-top:4px; }
+  #rowOverview .ov-status { font-size:10px;padding:1px 5px;border-radius:3px;border:1px solid; }
+  #rowOverview .ov-status.confirmed { background:rgba(46,204,113,0.08);color:var(--green);border-color:rgba(46,204,113,0.25); }
+  #rowOverview .ov-status.plan { background:rgba(251,191,36,0.08);color:#d97706;border-color:rgba(251,191,36,0.3); }
+  #rowOverview .ov-pay { font-size:10px;color:var(--accent);padding:1px 5px;border-radius:3px;background:rgba(37,99,235,0.06);border:1px solid rgba(37,99,235,0.2); }
 
   /* ===== MISC ===== */
   /* ===== MISC ===== */
@@ -493,7 +495,7 @@
     <button class="btn btn-ghost btn-sm" onclick="openCsvImport()">CSV取込</button>
     <button class="btn btn-ghost btn-sm" onclick="openCsvExport()">CSV出力</button>
     <button class="btn btn-danger btn-sm" onclick="resetAll()">リセット</button>
-    <span id="verLabel" style="font-size:10px;color:var(--text3);font-family:var(--mono);letter-spacing:0.03em;white-space:nowrap;">Ver:20260417_183728</span>
+    <span id="verLabel" style="font-size:10px;color:var(--text3);font-family:var(--mono);letter-spacing:0.03em;white-space:nowrap;">Ver:20260417_184201</span>
   </div>
 </div>
 
@@ -2025,33 +2027,33 @@ function showRowOverview(e, tr) {
   clearTimeout(_ovTimer);
   _ovTimer = setTimeout(() => {
     const d = tr.dataset;
-    const isIn  = d.type === 'in';
-    const isOut = d.type === 'out';
-    const amt = Number(d.amount);
-    const fmtAmt = '¥' + amt.toLocaleString('ja-JP');
-    const payHtml = d.pay ? `<div class="ov-pay">${d.pay === '振込済' ? '✅ 振込済' : '🏦 振込'}</div>` : '';
+    const isIn = d.type === 'in';
+    const amt  = Number(d.amount);
+    const fmtAmt = (isIn ? '+' : '-') + '¥' + amt.toLocaleString('ja-JP');
+    const payHtml = d.pay ? `<span class="ov-pay">${d.pay === '振込済' ? '✅済' : '🏦'}</span>` : '';
 
     _ov().innerHTML = `
-      <div class="ov-date">${d.date}</div>
-      <div class="ov-acct">
-        <span style="width:6px;height:6px;border-radius:50%;background:${d.acctColor};flex-shrink:0;display:inline-block;"></span>
-        ${d.acct}
+      <div class="ov-top">
+        <span class="ov-date">${d.date}</span>
+        <span class="ov-acct">
+          <span style="width:5px;height:5px;border-radius:50%;background:${d.acctColor};display:inline-block;"></span>
+          ${d.acct}
+        </span>
       </div>
       ${d.partner ? `<div class="ov-partner">${d.partner}</div>` : ''}
       ${d.desc    ? `<div class="ov-desc">${d.desc}</div>` : ''}
-      <hr>
-      <div class="ov-row">
+      <div class="ov-bottom">
         <span class="ov-cat">${d.category||'―'}</span>
-        <span class="ov-amount ${isIn?'ov-in':'ov-out'}">${isIn?'+':'-'}${fmtAmt}</span>
+        <span class="ov-amount ${isIn?'ov-in':'ov-out'}">${fmtAmt}</span>
       </div>
-      <div class="ov-row" style="margin-top:4px;">
+      <div class="ov-badges">
         <span class="ov-status ${d.status}">${d.status==='confirmed'?'確定':'予定'}</span>
         ${payHtml}
       </div>`;
 
     _ov().classList.add('show');
     moveRowOverview(e);
-  }, 120); // 120ms遅延でスクロール時に出ない
+  }, 100);
 }
 
 function hideRowOverview() {
