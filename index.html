@@ -495,7 +495,7 @@
     <button class="btn btn-ghost btn-sm" onclick="openCsvImport()">CSV取込</button>
     <button class="btn btn-ghost btn-sm" onclick="openCsvExport()">CSV出力</button>
     <button class="btn btn-danger btn-sm" onclick="resetAll()">リセット</button>
-    <span id="verLabel" style="font-size:10px;color:var(--text3);font-family:var(--mono);letter-spacing:0.03em;white-space:nowrap;">Ver:20260507_150522</span>
+    <span id="verLabel" style="font-size:10px;color:var(--text3);font-family:var(--mono);letter-spacing:0.03em;white-space:nowrap;">Ver:20260507_151422</span>
   </div>
 </div>
 
@@ -1881,20 +1881,8 @@ function renderDailyTable() {
   }
 
   const monthStart = filterMonth ? filterMonth+'-01' : '2000-01-01';
-  const prevDay = new Date(new Date(monthStart)-1).toISOString().slice(0,10);
   const runBal = {};
-  const runBalBase = {}; // 各口座の残高計算の基準日（この日付より後のエントリのみ反映）
-  ACCOUNTS.forEach(a => {
-    const adj = balanceAdjustments[a.id];
-    // adj.date が当月以降にある場合は adj.actual を初期値とする（getBalanceAt と計算を一致させるため）
-    if (filterMonth && adj && adj.date >= monthStart) {
-      runBal[a.id] = adj.actual;
-      runBalBase[a.id] = adj.date;
-    } else {
-      runBal[a.id] = getBalanceAt(a.id, prevDay);
-      runBalBase[a.id] = prevDay;
-    }
-  });
+  ACCOUNTS.forEach(a => { runBal[a.id] = getBalanceAt(a.id, new Date(new Date(monthStart)-1).toISOString().slice(0,10)); });
 
   const threshold = parseInt(document.getElementById('alertThreshold').value || 3000000);
   const rows = [];
@@ -1909,17 +1897,11 @@ function renderDailyTable() {
     const isTransfer = e.isTransfer;
 
     // 残高計算：カード払いは口座残高に影響しない
-    // adj.date 以前のエントリは runBal に反映しない（adj.actual に含まれているため）
-    const baseDate = runBalBase[e.account] || prevDay;
-    const affectsBalance = !isCard && e.status === 'confirmed' && e.date > baseDate;
-    if (affectsBalance) {
+    if (!isCard && e.status === 'confirmed') {
       if (e.type === 'in') runBal[e.account] = (runBal[e.account]||0) + e.amount;
       else runBal[e.account] = (runBal[e.account]||0) - e.amount;
     }
-    // adj.date 以前のエントリも残高を表示するため getBalanceAt で計算
-    const bal = (!isCard && e.status === 'confirmed')
-      ? (affectsBalance ? runBal[e.account] : getBalanceAt(e.account, e.date))
-      : null;
+    const bal = (!isCard && e.status === 'confirmed') ? runBal[e.account] : null;
     const isMinus    = bal !== null && bal < 0;
     const isWarn     = bal !== null && !isMinus && e.account === 'akita' && bal < threshold;
     const rowAlert   = isMinus || isWarn;
