@@ -496,7 +496,7 @@
     <button class="btn btn-ghost btn-sm" onclick="openCsvExport()">CSV出力</button>
     <button class="btn btn-ghost btn-sm" onclick="openFreeeModal()" style="color:#00a968;border-color:#00a968;" onmouseover="this.style.background='#00a968';this.style.color='#fff'" onmouseout="this.style.background='';this.style.color='#00a968'">📤 freee送信</button>
     <button class="btn btn-danger btn-sm" onclick="resetAll()">リセット</button>
-    <span id="verLabel" style="font-size:10px;color:var(--text3);font-family:var(--mono);letter-spacing:0.03em;white-space:nowrap;">Ver:20260512_OAuth3</span>
+    <span id="verLabel" style="font-size:10px;color:var(--text3);font-family:var(--mono);letter-spacing:0.03em;white-space:nowrap;">Ver:20260512_OAuth4</span>
   </div>
 </div>
 
@@ -4482,7 +4482,8 @@ const FREEE_CLIENT_ID     = '725714341858947';
 const FREEE_CLIENT_SECRET = 'vTBw7FC9vsx_qzSKNqFbULC_nCMyg-PGXAP0xrBCuxhdIeMoHCPHrrz0NjUGEksaeBpl9e2Amar8Y15v09z1eQ';
 const FREEE_REDIRECT_URI  = 'https://frex-design.github.io/cashflow/';
 const FREEE_AUTH_URL      = 'https://accounts.secure.freee.co.jp/public_api/authorize';
-const FREEE_TOKEN_URL     = 'https://accounts.secure.freee.co.jp/public_api/token';
+// トークン交換はSupabase Edge Function経由（CORS回避）
+const FREEE_TOKEN_URL     = `${SUPABASE_URL}/functions/v1/freee-oauth`;
 let freeeTokenData        = null; // { access_token, refresh_token, expires_at }
 
 const FREEE_WALLETABLE_MAP = {
@@ -4574,13 +4575,10 @@ async function getValidFreeeToken() {
 async function refreshFreeeToken() {
   const res = await fetch(FREEE_TOKEN_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
       grant_type: 'refresh_token',
-      client_id: FREEE_CLIENT_ID,
-      client_secret: FREEE_CLIENT_SECRET,
       refresh_token: freeeTokenData.refresh_token,
-      redirect_uri: FREEE_REDIRECT_URI,
     }),
   });
   const json = await res.json().catch(() => ({}));
@@ -4622,11 +4620,9 @@ async function handleOAuthCallback() {
   try {
     const res = await fetch(FREEE_TOKEN_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
         grant_type: 'authorization_code',
-        client_id: FREEE_CLIENT_ID,
-        client_secret: FREEE_CLIENT_SECRET,
         code,
         redirect_uri: FREEE_REDIRECT_URI,
       }),
