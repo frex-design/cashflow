@@ -496,7 +496,7 @@
     <button class="btn btn-ghost btn-sm" onclick="openCsvExport()">CSV出力</button>
     <button class="btn btn-ghost btn-sm" onclick="openFreeeModal()" style="color:#00a968;border-color:#00a968;" onmouseover="this.style.background='#00a968';this.style.color='#fff'" onmouseout="this.style.background='';this.style.color='#00a968'">📤 freee送信</button>
     <button class="btn btn-danger btn-sm" onclick="resetAll()">リセット</button>
-    <span id="verLabel" style="font-size:10px;color:var(--text3);font-family:var(--mono);letter-spacing:0.03em;white-space:nowrap;">Ver:20260512_OAuth5</span>
+    <span id="verLabel" style="font-size:10px;color:var(--text3);font-family:var(--mono);letter-spacing:0.03em;white-space:nowrap;">Ver:20260512_debug</span>
   </div>
 </div>
 
@@ -4759,6 +4759,11 @@ async function sendToFreee() {
   const skipCount = targets.length - transfers.length - deals.length;
 
   freeeLog(`📋 対象: 資金移動 ${transfers.length}件 / 取引 ${deals.length}件 / スキップ ${skipCount}件`);
+
+  // ── デバッグ: 先頭3件のデータ内容を確認 ──
+  targets.slice(0, 3).forEach((e, i) => {
+    freeeLog(`🔍 [${i+1}] isTransfer=${e.isTransfer} desc="${e.desc}" partner="${e.partner}" category="${e.category}"`, 'info');
+  });
   let ok = 0, err = 0;
 
   // ── 資金移動 ──
