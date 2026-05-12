@@ -495,7 +495,7 @@
     <button class="btn btn-ghost btn-sm" onclick="openCsvImport()">CSV取込</button>
     <button class="btn btn-ghost btn-sm" onclick="openCsvExport()">CSV出力</button>
     <button class="btn btn-danger btn-sm" onclick="resetAll()">リセット</button>
-    <span id="verLabel" style="font-size:10px;color:var(--text3);font-family:var(--mono);letter-spacing:0.03em;white-space:nowrap;">Ver:20260507_151422</span>
+    <span id="verLabel" style="font-size:10px;color:var(--text3);font-family:var(--mono);letter-spacing:0.03em;white-space:nowrap;">Ver:20260512_125610</span>
   </div>
 </div>
 
@@ -1179,7 +1179,7 @@
       <strong>CSVフォーマット（1行目はヘッダー行として読み飛ばします）</strong><br>
       列順：<code style="background:rgba(37,99,235,0.08);padding:1px 5px;border-radius:3px;">日付, 口座, 区分, 取引先, 摘要, 科目, 種別, 金額, 振込</code><br>
       ・日付：<code>2026-04-01</code> 形式<br>
-      ・口座：秋田銀行 / 信用金庫 / GMOあおぞら / Paild口座 / 現金（本社）/ 秋田銀行（横手）/ 現金（横手）/ VISAカード / JCBカード<br>
+      ・口座：秋田銀行 / 信用金庫 / GMOあおぞら / Paild口座 / 現金（本社）/ 秋田銀行（横手）/ 現金（横手）/ VISAカードV / VISAカードP / JCBカード<br>
       ・区分：<code>確定</code> または <code>予定</code><br>
       ・種別：<code>入金</code> または <code>出金</code><br>
       ・金額：数値のみ（カンマ不要）<br>
@@ -1230,7 +1230,8 @@ const ACCOUNTS = [
   { id: 'cash_honsha', name: '現金（本社）',     color: '#f1c40f', initBalance: 7588     },
   { id: 'akita_yokote',name: '秋田銀行（横手）', color: '#e67e22', initBalance: 2712     },
   { id: 'cash_yokote', name: '現金（横手）',     color: '#e74c3c', initBalance: 5124     },
-  { id: 'card_visa',   name: 'VISAカード',      color: '#1a56db', initBalance: 0, isCard: true },
+  { id: 'card_visa',   name: 'VISAカードV',     color: '#1a56db', initBalance: 0, isCard: true },
+  { id: 'card_visa_p', name: 'VISAカードP',     color: '#0284c7', initBalance: 0, isCard: true },
   { id: 'card_jib',    name: 'JCBカード',       color: '#7e3af2', initBalance: 0, isCard: true },
 ];
 const INIT_DATE = '2026-03-27'; // 3月27日残高を初期値・3月28日から計算スタート
@@ -4134,7 +4135,7 @@ const ACCOUNT_NAME_MAP = {
   '秋田銀行': 'akita', '信用金庫': 'shinkin', 'GMOあおぞら': 'gmo',
   'Paild口座': 'paild', '現金（本社）': 'cash_honsha',
   '秋田銀行（横手）': 'akita_yokote', '現金（横手）': 'cash_yokote',
-  'VISAカード': 'card_visa', 'JCBカード': 'card_jib',
+  'VISAカードV': 'card_visa', 'VISAカードP': 'card_visa_p', 'JCBカード': 'card_jib',
 };
 let csvParsedRows = [];
 
