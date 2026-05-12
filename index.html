@@ -496,7 +496,7 @@
     <button class="btn btn-ghost btn-sm" onclick="openCsvExport()">CSV出力</button>
     <button class="btn btn-ghost btn-sm" onclick="openFreeeModal()" style="color:#00a968;border-color:#00a968;" onmouseover="this.style.background='#00a968';this.style.color='#fff'" onmouseout="this.style.background='';this.style.color='#00a968'">📤 freee送信</button>
     <button class="btn btn-danger btn-sm" onclick="resetAll()">リセット</button>
-    <span id="verLabel" style="font-size:10px;color:var(--text3);font-family:var(--mono);letter-spacing:0.03em;white-space:nowrap;">Ver:20260512_debug</span>
+    <span id="verLabel" style="font-size:10px;color:var(--text3);font-family:var(--mono);letter-spacing:0.03em;white-space:nowrap;">Ver:20260512_partner</span>
   </div>
 </div>
 
@@ -4759,12 +4759,41 @@ async function sendToFreee() {
   const skipCount = targets.length - transfers.length - deals.length;
 
   freeeLog(`📋 対象: 資金移動 ${transfers.length}件 / 取引 ${deals.length}件 / スキップ ${skipCount}件`);
-
-  // ── デバッグ: 先頭3件のデータ内容を確認 ──
-  targets.slice(0, 3).forEach((e, i) => {
-    freeeLog(`🔍 [${i+1}] isTransfer=${e.isTransfer} desc="${e.desc}" partner="${e.partner}" category="${e.category}"`, 'info');
-  });
   let ok = 0, err = 0;
+
+  // ── 取引先マップを取得（name → id） ──
+  const partnerMap = {}; // name → freee partner_id
+  try {
+    freeeLog('👥 取引先リストを取得中…', 'info');
+    let offset = 0;
+    while (true) {
+      const pData = await freeeApiCall(token, 'GET',
+        `/api/1/partners?company_id=${FREEE_COMPANY_ID}&limit=100&offset=${offset}`);
+      const list = pData.partners || [];
+      list.forEach(p => { partnerMap[p.name] = p.id; });
+      if (list.length < 100) break;
+      offset += 100;
+    }
+    freeeLog(`👥 取引先 ${Object.keys(partnerMap).length}件 読み込み完了`, 'info');
+  } catch(e) {
+    freeeLog(`⚠️ 取引先リスト取得失敗（取引先なしで続行）: ${e.message}`, 'info');
+  }
+
+  // 取引先IDを返す（未登録なら自動作成）
+  async function getOrCreatePartnerId(name) {
+    if (!name) return null;
+    if (partnerMap[name] != null) return partnerMap[name];
+    try {
+      const res = await freeeApiCall(token, 'POST', '/api/1/partners',
+        { company_id: FREEE_COMPANY_ID, name });
+      const newId = res.partner?.id;
+      if (newId) { partnerMap[name] = newId; freeeLog(`👤 取引先新規登録: ${name}`, 'info'); }
+      return newId || null;
+    } catch(e) {
+      freeeLog(`⚠️ 取引先作成失敗: ${name} — ${e.message}`, 'info');
+      return null;
+    }
+  }
 
   // ── 資金移動 ──
   for (const t of transfers) {
@@ -4800,12 +4829,13 @@ async function sendToFreee() {
     if (!acctItem)   { freeeLog(`⏭ 科目マップなしスキップ: ${d.date} [${d.category}]`, 'skip'); continue; }
     if (!walletable) { freeeLog(`⏭ 口座マップなしスキップ: ${d.date} [${d.account}]`,   'skip'); continue; }
     const isIncome = d.type === 'in';
+    const partnerId = await getOrCreatePartnerId(d.partner);
     try {
       await freeeApiCall(token, 'POST', '/api/1/deals', {
         company_id: FREEE_COMPANY_ID,
         issue_date: d.date,
         type: isIncome ? 'income' : 'expense',
-        ...(d.partner ? { partner_name: d.partner } : {}),
+        ...(partnerId ? { partner_id: partnerId } : {}),
         details: [{
           account_item_id: acctItem.id,
           tax_code: acctItem.tax,
