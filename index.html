@@ -496,7 +496,7 @@
     <button class="btn btn-ghost btn-sm" onclick="openCsvExport()">CSV出力</button>
     <button class="btn btn-ghost btn-sm" onclick="openFreeeModal()" style="color:#00a968;border-color:#00a968;" onmouseover="this.style.background='#00a968';this.style.color='#fff'" onmouseout="this.style.background='';this.style.color='#00a968'">📤 freee送信</button>
     <button class="btn btn-danger btn-sm" onclick="resetAll()">リセット</button>
-    <span id="verLabel" style="font-size:10px;color:var(--text3);font-family:var(--mono);letter-spacing:0.03em;white-space:nowrap;">Ver:20260512_153557</span>
+    <span id="verLabel" style="font-size:10px;color:var(--text3);font-family:var(--mono);letter-spacing:0.03em;white-space:nowrap;">Ver:20260512_OAuth</span>
   </div>
 </div>
 
@@ -1229,15 +1229,16 @@
       <button onclick="closeFreeeModal()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--text3);">✕</button>
     </div>
 
-    <!-- トークン -->
+    <!-- freee認証 -->
     <div style="margin-bottom:14px;">
-      <div style="font-size:12px; font-weight:600; color:var(--text2); margin-bottom:6px;">アクセストークン</div>
+      <div style="font-size:12px; font-weight:600; color:var(--text2); margin-bottom:6px;">freee認証</div>
+      <div id="freeeAuthStatus" style="font-size:12px; margin-bottom:8px; color:var(--text3);">確認中…</div>
       <div style="display:flex; gap:8px; align-items:center;">
-        <input type="password" id="freeeToken" placeholder="freeeアクセストークンを入力"
-          style="flex:1; background:var(--bg2); border:1px solid var(--border); color:var(--text); font-family:var(--sans); font-size:13px; padding:8px 10px; border-radius:5px; outline:none;">
-        <button class="btn btn-primary btn-sm" onclick="saveFreeeTokenToSupabase()" id="freeeTokenSaveBtn">💾 保存</button>
+        <button id="freeeLoginBtn" onclick="startFreeeOAuth()"
+          style="background:#00a968;color:#fff;border:1px solid #009058;padding:6px 14px;font-size:12px;border-radius:5px;cursor:pointer;font-family:var(--sans);">🔐 freeeでログイン</button>
+        <button id="freeeLogoutBtn" onclick="clearFreeeAuth()"
+          style="display:none;background:transparent;color:var(--text3);border:1px solid var(--border);padding:6px 14px;font-size:12px;border-radius:5px;cursor:pointer;font-family:var(--sans);">🔓 連携解除</button>
       </div>
-      <div style="font-size:11px; margin-top:5px;" id="freeeTokenStatus"></div>
     </div>
 
     <!-- 期間指定 -->
@@ -1536,7 +1537,8 @@ async function init() {
 
   renderAll();
   loadSalesTarget();
-  loadFreeeToken();
+  await loadFreeeToken();
+  await handleOAuthCallback();
   startRealtimeSync();
 }
 
@@ -4474,9 +4476,14 @@ function showToast(msg) {
 }
 
 // ===== FREEE INTEGRATION =====
-const FREEE_COMPANY_ID = 3776972;
-const FREEE_API_BASE   = 'https://api.freee.co.jp';
-let freeeTokenCached   = ''; // Supabaseから読み込んだトークンをキャッシュ
+const FREEE_COMPANY_ID    = 3776972;
+const FREEE_API_BASE      = 'https://api.freee.co.jp';
+const FREEE_CLIENT_ID     = '725714341858947';
+const FREEE_CLIENT_SECRET = 'vTBw7FC9vsx_qzSKNqFbULC_nCMyg-PGXAP0xrBCuxhdIeMoHCPHrrz0NjUGEksaeBpl9e2Amar8Y15v09z1eQ';
+const FREEE_REDIRECT_URI  = 'https://frex-design.github.io/cashflow/';
+const FREEE_AUTH_URL      = 'https://accounts.secure.freee.co.jp/public_api/authorize';
+const FREEE_TOKEN_URL     = 'https://accounts.secure.freee.co.jp/public_api/token';
+let freeeTokenData        = null; // { access_token, refresh_token, expires_at }
 
 const FREEE_WALLETABLE_MAP = {
   'akita':        { id: 4443921,  type: 'bank_account' },
@@ -4530,27 +4537,154 @@ async function loadFreeeToken() {
   try {
     const data = await sbFetch('/rest/v1/plan_manual?key=eq.freee_token&select=memo_text');
     if (data?.[0]?.memo_text) {
-      freeeTokenCached = data[0].memo_text;
+      try {
+        freeeTokenData = JSON.parse(data[0].memo_text);
+      } catch {
+        // レガシー: プレーンなアクセストークン文字列 → マイグレーション
+        freeeTokenData = { access_token: data[0].memo_text, refresh_token: '', expires_at: 0 };
+      }
     }
   } catch(e) { /* silent */ }
 }
 
-async function saveFreeeTokenToSupabase() {
-  const token = document.getElementById('freeeToken').value.trim();
-  if (!token) { alert('トークンを入力してください'); return; }
-  const btn = document.getElementById('freeeTokenSaveBtn');
-  btn.disabled = true; btn.textContent = '保存中…';
-  try {
-    await sbFetch('/rest/v1/plan_manual?on_conflict=key', 'POST',
-      [{ key: 'freee_token', value: 0, memo_text: token }]);
-    freeeTokenCached = token;
-    document.getElementById('freeeTokenStatus').innerHTML =
-      '<span style="color:#2ecc71;">✅ Supabaseに保存しました（全端末で共有されます）</span>';
-  } catch(e) {
-    document.getElementById('freeeTokenStatus').innerHTML =
-      `<span style="color:#e74c3c;">❌ 保存失敗: ${e.message}</span>`;
+// ===== FREEE OAuth 2.0 =====
+
+async function saveFreeeTokenData(tokenData) {
+  freeeTokenData = tokenData;
+  await sbFetch('/rest/v1/plan_manual?on_conflict=key', 'POST',
+    [{ key: 'freee_token', value: 0, memo_text: JSON.stringify(tokenData) }]);
+  updateFreeeAuthUI();
+}
+
+async function getValidFreeeToken() {
+  if (!freeeTokenData?.access_token) {
+    throw new Error('freeeにログインしてください（📤 freee送信 → 🔐 freeeでログイン）');
   }
-  btn.disabled = false; btn.textContent = '💾 保存';
+  const now = Math.floor(Date.now() / 1000);
+  if (freeeTokenData.expires_at && now >= freeeTokenData.expires_at - 300) {
+    if (!freeeTokenData.refresh_token) {
+      throw new Error('トークンの期限が切れました。再ログインしてください。');
+    }
+    freeeLog('🔄 トークンを自動更新中…', 'info');
+    await refreshFreeeToken();
+  }
+  return freeeTokenData.access_token;
+}
+
+async function refreshFreeeToken() {
+  const res = await fetch(FREEE_TOKEN_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type: 'refresh_token',
+      client_id: FREEE_CLIENT_ID,
+      client_secret: FREEE_CLIENT_SECRET,
+      refresh_token: freeeTokenData.refresh_token,
+      redirect_uri: FREEE_REDIRECT_URI,
+    }),
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(json.error_description || json.message || 'トークン更新失敗');
+  const now = Math.floor(Date.now() / 1000);
+  await saveFreeeTokenData({
+    access_token: json.access_token,
+    refresh_token: json.refresh_token || freeeTokenData.refresh_token,
+    expires_at: now + (json.expires_in || 86400),
+  });
+}
+
+function startFreeeOAuth() {
+  const state = Math.random().toString(36).substring(2, 18);
+  sessionStorage.setItem('freee_oauth_state', state);
+  const params = new URLSearchParams({
+    client_id: FREEE_CLIENT_ID,
+    redirect_uri: FREEE_REDIRECT_URI,
+    response_type: 'code',
+    state,
+  });
+  window.location.href = `${FREEE_AUTH_URL}?${params}`;
+}
+
+async function handleOAuthCallback() {
+  const params = new URLSearchParams(window.location.search);
+  const code  = params.get('code');
+  const state = params.get('state');
+  if (!code) return;
+  // URLからcodeを除去（ブラウザ履歴を汚さない）
+  window.history.replaceState({}, document.title, window.location.pathname);
+  // stateの検証
+  const savedState = sessionStorage.getItem('freee_oauth_state');
+  sessionStorage.removeItem('freee_oauth_state');
+  if (savedState && state !== savedState) {
+    alert('認証エラー: stateが一致しません。再度ログインしてください。'); return;
+  }
+  // codeをトークンに交換
+  try {
+    const res = await fetch(FREEE_TOKEN_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'authorization_code',
+        client_id: FREEE_CLIENT_ID,
+        client_secret: FREEE_CLIENT_SECRET,
+        code,
+        redirect_uri: FREEE_REDIRECT_URI,
+      }),
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(json.error_description || json.message || `HTTP ${res.status}`);
+    const now = Math.floor(Date.now() / 1000);
+    await saveFreeeTokenData({
+      access_token: json.access_token,
+      refresh_token: json.refresh_token,
+      expires_at: now + (json.expires_in || 86400),
+    });
+    // モーダルを開いて成功メッセージを表示
+    openFreeeModal();
+    document.getElementById('freeeLog').innerHTML =
+      '<div style="color:#2ecc71;">✅ freee連携完了！トークンをSupabaseに保存しました🎉<br>少佐もれいさんも自動で使えます。</div>';
+  } catch(e) {
+    alert('freeeトークン取得エラー: ' + e.message);
+  }
+}
+
+function updateFreeeAuthUI() {
+  const statusEl  = document.getElementById('freeeAuthStatus');
+  const loginBtn  = document.getElementById('freeeLoginBtn');
+  const logoutBtn = document.getElementById('freeeLogoutBtn');
+  if (!statusEl) return;
+  if (freeeTokenData?.access_token) {
+    const now = Math.floor(Date.now() / 1000);
+    const exp = freeeTokenData.expires_at;
+    let txt = '';
+    if (exp) {
+      const diff = exp - now;
+      if (diff < 0) {
+        txt = '<span style="color:#e74c3c;">⚠️ トークン期限切れ（送信時に自動更新します）</span>';
+      } else if (diff < 3600) {
+        txt = `<span style="color:#d97706;">⚡ まもなく期限切れ（${Math.floor(diff/60)}分後）</span>`;
+      } else {
+        const d = new Date(exp * 1000);
+        txt = `<span style="color:#2ecc71;">✅ ログイン済み（期限: ${d.toLocaleDateString('ja-JP')} ${d.toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'})}）</span>`;
+      }
+    } else {
+      txt = '<span style="color:#2ecc71;">✅ ログイン済み</span>';
+    }
+    statusEl.innerHTML = txt;
+    if (loginBtn)  loginBtn.textContent = '🔄 再ログイン';
+    if (logoutBtn) logoutBtn.style.display = '';
+  } else {
+    statusEl.innerHTML = '<span style="color:var(--text3);">未ログイン</span>';
+    if (loginBtn)  loginBtn.textContent = '🔐 freeeでログイン';
+    if (logoutBtn) logoutBtn.style.display = 'none';
+  }
+}
+
+async function clearFreeeAuth() {
+  if (!confirm('freee連携を解除しますか？\n（全端末でトークンが削除されます）')) return;
+  freeeTokenData = null;
+  try { await sbFetch('/rest/v1/plan_manual?key=eq.freee_token', 'DELETE'); } catch {}
+  updateFreeeAuthUI();
 }
 
 function openFreeeModal() {
@@ -4562,13 +4696,7 @@ function openFreeeModal() {
   document.getElementById('freeeTo').value   = `${y}-${pad(m)}-${pad(lastDay)}`;
   updateFreeeCalDisplay('freeeFrom');
   updateFreeeCalDisplay('freeeTo');
-  // Supabaseキャッシュがあれば●でマスク表示、なければ空
-  document.getElementById('freeeToken').value = '';
-  document.getElementById('freeeToken').placeholder =
-    freeeTokenCached ? '保存済み（変更する場合のみ入力）' : 'freeeアクセストークンを入力';
-  document.getElementById('freeeTokenStatus').innerHTML = freeeTokenCached
-    ? '<span style="color:#2ecc71;">✅ Supabase保存済みトークンを使用します</span>'
-    : '<span style="color:var(--text3);">トークン未設定。入力して「💾 保存」してください。</span>';
+  updateFreeeAuthUI();
   document.getElementById('freeeLog').innerHTML = '';
   document.getElementById('freeeSendBtn').disabled = false;
   document.getElementById('freeeSendBtn').textContent = '📤 freeeへ送信';
@@ -4619,9 +4747,8 @@ async function freeeApiCall(token, method, path, body) {
 }
 
 async function sendToFreee() {
-  // 入力欄に値があれば優先、なければSupabaseキャッシュを使用
-  const token = document.getElementById('freeeToken').value.trim() || freeeTokenCached;
-  if (!token) { alert('アクセストークンを入力してください\n「💾 保存」ボタンで先に保存してください'); return; }
+  let token;
+  try { token = await getValidFreeeToken(); } catch(e) { alert(e.message); return; }
   const from = document.getElementById('freeeFrom').value;
   const to   = document.getElementById('freeeTo').value;
   if (!from || !to) { alert('期間を指定してください'); return; }
