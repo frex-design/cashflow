@@ -496,7 +496,7 @@
     <button class="btn btn-ghost btn-sm" onclick="openCsvExport()">CSV出力</button>
     <button class="btn btn-ghost btn-sm" onclick="openFreeeModal()" style="color:#00a968;border-color:#00a968;" onmouseover="this.style.background='#00a968';this.style.color='#fff'" onmouseout="this.style.background='';this.style.color='#00a968'">📤 freee送信</button>
     <button class="btn btn-danger btn-sm" onclick="resetAll()">リセット</button>
-    <span id="verLabel" style="font-size:10px;color:var(--text3);font-family:var(--mono);letter-spacing:0.03em;white-space:nowrap;">Ver:20260512_153222</span>
+    <span id="verLabel" style="font-size:10px;color:var(--text3);font-family:var(--mono);letter-spacing:0.03em;white-space:nowrap;">Ver:20260512_153557</span>
   </div>
 </div>
 
@@ -1244,11 +1244,29 @@
     <div style="margin-bottom:14px;">
       <div style="font-size:12px; font-weight:600; color:var(--text2); margin-bottom:6px;">送信期間（確定データのみ対象）</div>
       <div style="display:flex; align-items:center; gap:8px;">
-        <input type="date" id="freeeFrom" onchange="updateFreeePreview()"
-          style="flex:1; background:var(--bg2); border:1px solid var(--border); color:var(--text); font-family:var(--sans); font-size:13px; padding:7px 10px; border-radius:5px; outline:none;">
-        <span style="color:var(--text3);">〜</span>
-        <input type="date" id="freeeTo" onchange="updateFreeePreview()"
-          style="flex:1; background:var(--bg2); border:1px solid var(--border); color:var(--text); font-family:var(--sans); font-size:13px; padding:7px 10px; border-radius:5px; outline:none;">
+        <!-- 開始日 -->
+        <div style="flex:1; position:relative;">
+          <div style="display:flex; align-items:center; gap:0; border:1px solid var(--border); border-radius:5px; overflow:hidden; background:var(--bg2);">
+            <button class="filter-nav-btn" onclick="event.stopPropagation(); shiftFreeeCalDate('freeeFrom',-1)">&#8249;</button>
+            <div id="freeeFromDisplay" onclick="event.stopPropagation(); toggleCustomCal('freeeFrom')"
+              style="flex:1; text-align:center; padding:7px 4px; font-size:13px; color:var(--text); cursor:pointer; user-select:none; white-space:nowrap;"></div>
+            <button class="filter-nav-btn" onclick="event.stopPropagation(); shiftFreeeCalDate('freeeFrom',1)">&#8250;</button>
+          </div>
+          <input type="hidden" id="freeeFrom">
+          <div id="customCal_freeeFrom" class="custom-cal" style="display:none; position:absolute; top:calc(100% + 4px); left:0; z-index:600;"></div>
+        </div>
+        <span style="color:var(--text3); flex-shrink:0;">〜</span>
+        <!-- 終了日 -->
+        <div style="flex:1; position:relative;">
+          <div style="display:flex; align-items:center; gap:0; border:1px solid var(--border); border-radius:5px; overflow:hidden; background:var(--bg2);">
+            <button class="filter-nav-btn" onclick="event.stopPropagation(); shiftFreeeCalDate('freeeTo',-1)">&#8249;</button>
+            <div id="freeeToDisplay" onclick="event.stopPropagation(); toggleCustomCal('freeeTo')"
+              style="flex:1; text-align:center; padding:7px 4px; font-size:13px; color:var(--text); cursor:pointer; user-select:none; white-space:nowrap;"></div>
+            <button class="filter-nav-btn" onclick="event.stopPropagation(); shiftFreeeCalDate('freeeTo',1)">&#8250;</button>
+          </div>
+          <input type="hidden" id="freeeTo">
+          <div id="customCal_freeeTo" class="custom-cal" style="display:none; position:absolute; top:calc(100% + 4px); right:0; left:auto; z-index:600;"></div>
+        </div>
       </div>
     </div>
 
@@ -2379,12 +2397,20 @@ function updateDateDisplay(key) {
   disp.textContent = `${y}/${String(m).padStart(2,'0')}/${String(d).padStart(2,'0')}（${DOW[dt.getDay()]}）`;
 }
 
+const CAL_KEY_MAP = {
+  'entry':     'entryDate',
+  'transfer':  'transferDate',
+  'modal':     'em_date',
+  'freeeFrom': 'freeeFrom',
+  'freeeTo':   'freeeTo',
+};
+
 function toggleCustomCal(key) {
   const calId = `customCal_${key}`;
   const cal = document.getElementById(calId);
   document.querySelectorAll('.custom-cal').forEach(c => { if (c.id !== calId) c.style.display = 'none'; });
   if (cal.style.display !== 'none') { cal.style.display = 'none'; return; }
-  const id = key === 'entry' ? 'entryDate' : key === 'transfer' ? 'transferDate' : 'em_date';
+  const id = CAL_KEY_MAP[key] || 'em_date';
   const v = document.getElementById(id).value;
   if (v) {
     const [y, m] = v.split('-').map(Number);
@@ -2399,7 +2425,7 @@ function toggleCustomCal(key) {
 
 function buildCustomCal(key) {
   const { y, m } = calState[key];
-  const id = key === 'entry' ? 'entryDate' : key === 'transfer' ? 'transferDate' : 'em_date';
+  const id = CAL_KEY_MAP[key] || 'em_date';
   const selectedVal = document.getElementById(id).value;
   const todayStr = getTodayStr();
 
@@ -2452,10 +2478,13 @@ function shiftCalMonth(key, delta) {
 }
 
 function selectCustomDate(key, dateStr) {
-  const id = key === 'entry' ? 'entryDate' : key === 'transfer' ? 'transferDate' : 'em_date';
+  const id = CAL_KEY_MAP[key] || 'em_date';
   document.getElementById(id).value = dateStr;
   if (key === 'modal') {
     updateModalDateDisplay();
+  } else if (key === 'freeeFrom' || key === 'freeeTo') {
+    updateFreeeCalDisplay(key);
+    updateFreeePreview();
   } else {
     updateDateDisplay(key);
   }
@@ -2466,13 +2495,43 @@ function selectCustomDate(key, dateStr) {
 document.addEventListener('click', function(e) {
   document.querySelectorAll('.custom-cal').forEach(cal => {
     const key = cal.id.replace('customCal_', '');
-    let disp;
-    if (key === 'entry') disp = document.getElementById('entryDateDisplay');
-    else if (key === 'transfer') disp = document.getElementById('transferDateDisplay');
-    else if (key === 'modal') disp = document.getElementById('em_dateDisplay');
+    const dispId = key === 'entry' ? 'entryDateDisplay'
+                 : key === 'transfer' ? 'transferDateDisplay'
+                 : key === 'modal' ? 'em_dateDisplay'
+                 : key === 'freeeFrom' ? 'freeeFromDisplay'
+                 : key === 'freeeTo'   ? 'freeeToDisplay'
+                 : null;
+    const disp = dispId ? document.getElementById(dispId) : null;
     if (disp && !cal.contains(e.target) && e.target !== disp) cal.style.display = 'none';
   });
 });
+
+function updateFreeeCalDisplay(key) {
+  const val = document.getElementById(CAL_KEY_MAP[key]).value;
+  const dispId = key === 'freeeFrom' ? 'freeeFromDisplay' : 'freeeToDisplay';
+  const el = document.getElementById(dispId);
+  if (!el) return;
+  if (val) {
+    const [y, m, d] = val.split('-').map(Number);
+    el.textContent = `${y}/${String(m).padStart(2,'0')}/${String(d).padStart(2,'0')}`;
+    el.style.color = 'var(--text)';
+  } else {
+    el.textContent = '日付を選択';
+    el.style.color = 'var(--text3)';
+  }
+}
+
+function shiftFreeeCalDate(key, delta) {
+  const id = CAL_KEY_MAP[key];
+  const val = document.getElementById(id).value;
+  if (!val) return;
+  const d = new Date(val);
+  d.setDate(d.getDate() + delta);
+  const newVal = d.toISOString().slice(0, 10);
+  document.getElementById(id).value = newVal;
+  updateFreeeCalDisplay(key);
+  updateFreeePreview();
+}
 
 // ===== DATE SHIFT FOR FORMS =====
 function updateModalDateDisplay() {
@@ -4501,6 +4560,8 @@ function openFreeeModal() {
   const pad = n => String(n).padStart(2, '0');
   document.getElementById('freeeFrom').value = `${y}-${pad(m)}-01`;
   document.getElementById('freeeTo').value   = `${y}-${pad(m)}-${pad(lastDay)}`;
+  updateFreeeCalDisplay('freeeFrom');
+  updateFreeeCalDisplay('freeeTo');
   // Supabaseキャッシュがあれば●でマスク表示、なければ空
   document.getElementById('freeeToken').value = '';
   document.getElementById('freeeToken').placeholder =
