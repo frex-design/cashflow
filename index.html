@@ -563,6 +563,18 @@
       <div class="sidebar-section-title">アラート</div>
       <div id="alertArea"><div style="font-size:12px;color:var(--text3);">問題ありません</div></div>
     </div>
+
+    <!-- 操作ガイドボタン -->
+    <div style="padding:16px;">
+      <button onclick="showGuideModal()"
+        style="width:100%;padding:10px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;
+               font-size:12px;color:var(--text2);cursor:pointer;font-family:var(--sans);
+               display:flex;align-items:center;justify-content:center;gap:6px;transition:all 0.15s;"
+        onmouseover="this.style.background='var(--accent)';this.style.color='#fff';this.style.borderColor='var(--accent)'"
+        onmouseout="this.style.background='var(--bg3)';this.style.color='var(--text2)';this.style.borderColor='var(--border)'">
+        📖 操作ガイド
+      </button>
+    </div>
   </div>
 
   <!-- CONTENT -->
@@ -962,6 +974,105 @@
 
   </div><!-- /content -->
 </div><!-- /main -->
+
+<!-- ===== 操作ガイド モーダル ===== -->
+<div id="guideModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:500;align-items:flex-start;justify-content:center;padding:32px 16px;overflow-y:auto;"
+  onclick="if(event.target===this)closeGuideModal()">
+  <div style="background:var(--bg);border-radius:14px;width:640px;max-width:96vw;box-shadow:0 12px 48px rgba(0,0,0,0.22);overflow:hidden;">
+
+    <!-- ヘッダー -->
+    <div style="background:var(--accent);padding:20px 24px;display:flex;justify-content:space-between;align-items:center;">
+      <div style="color:#fff;font-size:17px;font-weight:700;">📖 操作ガイド</div>
+      <button onclick="closeGuideModal()" style="background:rgba(255,255,255,0.2);border:none;color:#fff;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:16px;">✕</button>
+    </div>
+
+    <!-- コンテンツ -->
+    <div style="padding:24px;font-size:13px;color:var(--text);line-height:1.8;">
+
+      <!-- 入出金の登録 -->
+      <div style="margin-bottom:20px;">
+        <div style="font-weight:700;font-size:14px;color:var(--accent);border-bottom:2px solid var(--accent);padding-bottom:4px;margin-bottom:10px;">💰 入出金の登録</div>
+        <table style="width:100%;border-collapse:collapse;font-size:12px;">
+          <tr style="background:var(--bg2);"><td style="padding:6px 10px;font-weight:600;">新規登録</td><td style="padding:6px 10px;">ヘッダーの「＋ 入金」「＋ 出金」ボタンをクリック</td></tr>
+          <tr><td style="padding:6px 10px;font-weight:600;">編集</td><td style="padding:6px 10px;">一覧の行をクリック → 編集モーダルが開く</td></tr>
+          <tr style="background:var(--bg2);"><td style="padding:6px 10px;font-weight:600;">削除</td><td style="padding:6px 10px;">編集モーダル内の「削除」ボタン</td></tr>
+          <tr><td style="padding:6px 10px;font-weight:600;">並び替え</td><td style="padding:6px 10px;">同日付の行をドラッグ＆ドロップ</td></tr>
+          <tr style="background:var(--bg2);"><td style="padding:6px 10px;font-weight:600;">翌月コピー</td><td style="padding:6px 10px;">行の右端「＋翌月」ボタン</td></tr>
+          <tr><td style="padding:6px 10px;font-weight:600;">振込済に変更</td><td style="padding:6px 10px;">「振込」バッジをクリック（アニメーションで切替）</td></tr>
+        </table>
+      </div>
+
+      <!-- PDF取込 -->
+      <div style="margin-bottom:20px;">
+        <div style="font-weight:700;font-size:14px;color:var(--accent);border-bottom:2px solid var(--accent);padding-bottom:4px;margin-bottom:10px;">📄 カード明細PDF取込（VISA / JCB）</div>
+        <ol style="margin:0;padding-left:18px;color:var(--text2);">
+          <li>ヘッダーの「📄 VISA/JCB取込」をクリック</li>
+          <li>カード種別（VISAカードV・VISAカードP・JCBカード）を選択</li>
+          <li>PDFファイルをドロップまたは「ファイルを選択」</li>
+          <li>プレビューで内容を確認して「取込」ボタン</li>
+        </ol>
+        <div style="margin-top:8px;padding:8px 12px;background:var(--bg2);border-radius:6px;color:var(--text3);font-size:11px;">
+          ⚠️ お支払い金額（分割払いは各月額）を自動取得。取引先名は括弧・空白を自動除去。摘要は空で登録されます。
+        </div>
+      </div>
+
+      <!-- Amazon拡張機能 -->
+      <div style="margin-bottom:20px;">
+        <div style="font-weight:700;font-size:14px;color:var(--accent);border-bottom:2px solid var(--accent);padding-bottom:4px;margin-bottom:10px;">🛒 Amazon注文の記帳（Chrome拡張機能）</div>
+        <ol style="margin:0;padding-left:18px;color:var(--text2);">
+          <li>Amazonビジネスで購入後の注文確認ページを開く</li>
+          <li>右上にバナーが自動表示される</li>
+          <li>金額・科目を確認（デフォルト：消耗品費）</li>
+          <li>「✓ 記帳する」をクリック → アマゾン口座に即記帳</li>
+        </ol>
+        <div style="margin-top:8px;padding:8px 12px;background:var(--bg2);border-radius:6px;color:var(--text3);font-size:11px;">
+          💡 拡張機能のインストール：chrome://extensions/ → デベロッパーモードON → 「パッケージ化されていない拡張機能を読み込む」→ cashflow-amazon-ext フォルダを選択
+        </div>
+      </div>
+
+      <!-- フィルター・検索 -->
+      <div style="margin-bottom:20px;">
+        <div style="font-weight:700;font-size:14px;color:var(--accent);border-bottom:2px solid var(--accent);padding-bottom:4px;margin-bottom:10px;">🔍 フィルター・検索</div>
+        <table style="width:100%;border-collapse:collapse;font-size:12px;">
+          <tr style="background:var(--bg2);"><td style="padding:6px 10px;font-weight:600;">月切替</td><td style="padding:6px 10px;">「‹ 2026年5月 ›」の矢印ボタン、またはクリックしてピッカーで選択</td></tr>
+          <tr><td style="padding:6px 10px;font-weight:600;">口座絞込</td><td style="padding:6px 10px;">口座ドロップダウンで選択（件数と合計が表示）</td></tr>
+          <tr style="background:var(--bg2);"><td style="padding:6px 10px;font-weight:600;">確定/予定</td><td style="padding:6px 10px;">「確定＋予定」「確定のみ」「予定のみ」で切替</td></tr>
+          <tr><td style="padding:6px 10px;font-weight:600;">テキスト検索</td><td style="padding:6px 10px;">取引先・摘要・科目で検索（大文字小文字・全角半角・カタカナひらがな区別なし）</td></tr>
+        </table>
+      </div>
+
+      <!-- CSV -->
+      <div style="margin-bottom:20px;">
+        <div style="font-weight:700;font-size:14px;color:var(--accent);border-bottom:2px solid var(--accent);padding-bottom:4px;margin-bottom:10px;">📊 CSV出力・取込</div>
+        <table style="width:100%;border-collapse:collapse;font-size:12px;">
+          <tr style="background:var(--bg2);"><td style="padding:6px 10px;font-weight:600;white-space:nowrap;">CSV出力</td><td style="padding:6px 10px;">ヘッダー「CSV出力」→ 表示中のデータを出力</td></tr>
+          <tr><td style="padding:6px 10px;font-weight:600;white-space:nowrap;">CSV取込</td><td style="padding:6px 10px;">ヘッダー「CSV取込」→ フォーマット：日付, 口座, 区分, 取引先, 摘要, 科目, 種別, 金額, 振込</td></tr>
+        </table>
+      </div>
+
+      <!-- freee連携 -->
+      <div style="margin-bottom:4px;">
+        <div style="font-weight:700;font-size:14px;color:var(--accent);border-bottom:2px solid var(--accent);padding-bottom:4px;margin-bottom:10px;">📤 freee連携</div>
+        <ol style="margin:0;padding-left:18px;color:var(--text2);">
+          <li>ヘッダー「📤 freee送信」をクリック</li>
+          <li>初回のみ「🔐 freeeでログイン」→ 認証（以降は自動）</li>
+          <li>送信期間を選択してプレビュー確認</li>
+          <li>「送信」ボタンで一括送信（確定データのみ）</li>
+        </ol>
+        <div style="margin-top:8px;padding:8px 12px;background:var(--bg2);border-radius:6px;color:var(--text3);font-size:11px;">
+          ⚠️ 給与手当・役員報酬はfreee HR連携のためスキップ。アマゾン口座は「未払金」仕訳として送信。
+        </div>
+      </div>
+
+    </div>
+
+    <!-- フッター -->
+    <div style="padding:12px 24px;background:var(--bg2);border-top:1px solid var(--border);text-align:right;">
+      <button onclick="closeGuideModal()" style="padding:8px 24px;background:var(--accent);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">閉じる</button>
+    </div>
+
+  </div>
+</div>
 
 <!-- ===== EDIT MODAL ===== -->
 <div id="editModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.35); z-index:400; align-items:center; justify-content:center;">
@@ -2345,6 +2456,14 @@ function startEdit(id) {
   document.getElementById('em_category').value = e.category || '';
 
   document.getElementById('editModal').style.display = 'flex';
+}
+
+// ===== 操作ガイド =====
+function showGuideModal() {
+  document.getElementById('guideModal').style.display = 'flex';
+}
+function closeGuideModal() {
+  document.getElementById('guideModal').style.display = 'none';
 }
 
 function closeEditModal() {
