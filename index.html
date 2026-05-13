@@ -1981,7 +1981,7 @@ function renderDailyTable() {
   const filterAccount = document.getElementById('filterAccount').value;
   const filterStatus = document.getElementById('filterStatus').value;
   const filterSearchRaw = (document.getElementById('filterSearch')?.value || '').trim();
-  const filterSearch = filterSearchRaw.toLowerCase();
+  const filterSearch = normalizeForSearch(filterSearchRaw);
   const clearBtn = document.getElementById('filterSearchClear');
   if (clearBtn) clearBtn.style.display = filterSearch ? 'block' : 'none';
 
@@ -1994,9 +1994,9 @@ function renderDailyTable() {
     if (filterAccount !== 'all' && e.account !== filterAccount) return false;
     if (filterStatus !== 'all' && e.status !== filterStatus) return false;
     if (filterSearch) {
-      const partner  = (e.partner  || '').toLowerCase();
-      const desc     = (e.desc     || '').toLowerCase();
-      const category = (e.category || '').toLowerCase();
+      const partner  = normalizeForSearch(e.partner);
+      const desc     = normalizeForSearch(e.desc);
+      const category = normalizeForSearch(e.category);
       if (!partner.includes(filterSearch) && !desc.includes(filterSearch) && !category.includes(filterSearch)) return false;
     }
     return true;
@@ -4947,6 +4947,15 @@ function toHalfWidth(str) {
     .replace(/　/g, ' ').replace(/／/g, '/');
 }
 
+// 検索用テキスト正規化（大文字小文字・全角半角・カタカナひらがな を区別しない）
+function normalizeForSearch(str) {
+  if (!str) return '';
+  return toHalfWidth(str)
+    .toLowerCase()
+    // カタカナ → ひらがな
+    .replace(/[ァ-ヶ]/g, c => String.fromCharCode(c.charCodeAt(0) - 0x60));
+}
+
 // 取引先マッピングルール（VISA・JCB 共通）
 // category 省略 → applyVisaMapping の defaultCategory を使用
 const VISA_MAPPING = [
@@ -5254,7 +5263,7 @@ async function importVisaEntries() {
         status: 'confirmed',
         amount: tx.amount,
         partner,
-        desc: tx.storeName,   // 元の店名を摘要として保存
+        desc: '',             // 摘要は空（PDF取込時は設定しない）
         category,
         isCard: true,
         isTransfer: false,
