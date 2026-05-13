@@ -496,7 +496,7 @@
     <button class="btn btn-ghost btn-sm" onclick="openCsvExport()">CSV出力</button>
     <button class="btn btn-ghost btn-sm" onclick="openFreeeModal()" style="color:#00a968;border-color:#00a968;" onmouseover="this.style.background='#00a968';this.style.color='#fff'" onmouseout="this.style.background='';this.style.color='#00a968'">📤 freee送信</button>
     <button class="btn btn-danger btn-sm" onclick="resetAll()">リセット</button>
-    <span id="verLabel" style="font-size:10px;color:var(--text3);font-family:var(--mono);letter-spacing:0.03em;white-space:nowrap;">Ver:20260512_partner</span>
+    <span id="verLabel" style="font-size:10px;color:var(--text3);font-family:var(--mono);letter-spacing:0.03em;white-space:nowrap;">Ver:20260513_161108partner</span>
   </div>
 </div>
 
@@ -644,6 +644,7 @@
               <select class="form-select" id="entryPayMethod">
                 <option value="">―</option>
                 <option value="振込">振込</option>
+                <option value="請求書払い">請求書払い</option>
               </select>
             </div>
             <div class="form-group">
@@ -1009,6 +1010,7 @@
           <option value="">―</option>
           <option value="振込">振込</option>
           <option value="振込済">振込済</option>
+          <option value="請求書払い">請求書払い</option>
         </select>
       </div>
     </div>
@@ -1302,6 +1304,7 @@ const ACCOUNTS = [
   { id: 'cash_honsha', name: '現金（本社）',     color: '#f1c40f', initBalance: 7588     },
   { id: 'akita_yokote',name: '秋田銀行（横手）', color: '#e67e22', initBalance: 2712     },
   { id: 'cash_yokote', name: '現金（横手）',     color: '#e74c3c', initBalance: 5124     },
+  { id: 'amazon',      name: 'アマゾン',          color: '#FF9900', initBalance: 0, isCard: true },
   { id: 'card_visa',   name: 'VISAカードV',     color: '#1a56db', initBalance: 0, isCard: true },
   { id: 'card_visa_p', name: 'VISAカードP',     color: '#0284c7', initBalance: 0, isCard: true },
   { id: 'card_jib',    name: 'JCBカード',       color: '#7e3af2', initBalance: 0, isCard: true },
@@ -4826,12 +4829,13 @@ async function sendToFreee() {
   for (const d of deals) {
     const acctItem   = FREEE_ACCOUNT_ITEM_MAP[d.category];
     const walletable = FREEE_WALLETABLE_MAP[d.account];
-    if (!acctItem)   { freeeLog(`⏭ 科目マップなしスキップ: ${d.date} [${d.category}]`, 'skip'); continue; }
-    if (!walletable) { freeeLog(`⏭ 口座マップなしスキップ: ${d.date} [${d.account}]`,   'skip'); continue; }
+    const isAmazon   = d.account === 'amazon'; // アマゾン口座：payments省略→freeeで未払金として自動処理
+    if (!acctItem)              { freeeLog(`⏭ 科目マップなしスキップ: ${d.date} [${d.category}]`, 'skip'); continue; }
+    if (!walletable && !isAmazon) { freeeLog(`⏭ 口座マップなしスキップ: ${d.date} [${d.account}]`,   'skip'); continue; }
     const isIncome = d.type === 'in';
     const partnerId = await getOrCreatePartnerId(d.partner);
     try {
-      await freeeApiCall(token, 'POST', '/api/1/deals', {
+      const dealBody = {
         company_id: FREEE_COMPANY_ID,
         issue_date: d.date,
         type: isIncome ? 'income' : 'expense',
@@ -4842,14 +4846,20 @@ async function sendToFreee() {
           amount: d.amount,
           description: d.desc || '',
         }],
-        payments: [{
+      };
+      // アマゾン口座: paymentsなし → freeeで「費用科目 / 未払金」仕訳として処理
+      // 通常口座: walletableから支払い
+      if (!isAmazon) {
+        dealBody.payments = [{
           amount: d.amount,
           from_walletable_type: walletable.type,
           from_walletable_id: walletable.id,
           date: d.date,
-        }],
-      });
-      freeeLog(`✅ ${isIncome?'入金':'出金'}: ${d.date} [${d.category}] ${d.partner||''} ¥${d.amount.toLocaleString()}`, 'ok');
+        }];
+      }
+      await freeeApiCall(token, 'POST', '/api/1/deals', dealBody);
+      const label = isAmazon ? '未払金' : (isIncome ? '入金' : '出金');
+      freeeLog(`✅ ${label}: ${d.date} [${d.category}] ${d.partner||''} ¥${d.amount.toLocaleString()}`, 'ok');
       ok++;
     } catch(e) {
       freeeLog(`❌ エラー: ${d.date} [${d.category}] — ${e.message}`, 'err');
