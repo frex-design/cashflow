@@ -4977,7 +4977,7 @@ function parseVisaLine(lineText) {
   return { date, storeName, amount: payAmount };
 }
 
-// PDFテキスト抽出・パース
+// PDFテキスト抽出・パース（VカードとPカード両対応）
 async function parseVisaPdf(arrayBuffer) {
   // PDF.js workerをCDNから設定
   pdfjsLib.GlobalWorkerOptions.workerSrc =
@@ -4988,8 +4988,9 @@ async function parseVisaPdf(arrayBuffer) {
     cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/cmaps/',
     cMapPacked: true,
   }).promise;
-  const transactions = [];
 
+  // 全ページのテキスト行を収集
+  const rawLines = [];
   for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
     const page = await pdf.getPage(pageNum);
     const textContent = await page.getTextContent();
@@ -5004,14 +5005,48 @@ async function parseVisaPdf(arrayBuffer) {
     });
 
     // Y降順（上→下）→ X昇順（左→右）でテキスト結合
-    const lines = Array.from(lineMap.entries())
+    Array.from(lineMap.entries())
       .sort((a, b) => b[0] - a[0])
-      .map(([, items]) => items.sort((a, b) => a.x - b.x).map(i => i.text).join(' '));
+      .forEach(([, items]) => {
+        rawLines.push(items.sort((a, b) => a.x - b.x).map(i => i.text).join(' '));
+      });
+  }
 
-    for (const lineText of lines) {
-      const tx = parseVisaLine(lineText);
-      if (tx) transactions.push(tx);
+  // Pカード対応: B#プレフィックス除去・分割店名の再結合
+  // Pカードは長い店名が2行に分かれ、データ行に店名が入らないケースがある
+  // 例: 'ANTHROPIC: CLAUDE TEAM (ANTHR' → 'B# 26/04/03 7,067 ...' → 'OPIC.COM)'
+  const processedLines = [];
+  let pendingStoreName = '';
+  const HEADER_RE = /^（お|^ご利用|^現地通貨|^三井住友|^藤嶋|^カード|^\d{4}年|^お名前|^お支払|^金融|^支店|^科目|^お問|^※/;
+
+  for (const rawLine of rawLines) {
+    const line = toHalfWidth(rawLine.trim());
+    const stripped = line.replace(/^B#\s+/, ''); // Pカード「B# 」プレフィックスを除去
+
+    if (/^\d{2}\/\d{2}\/\d{2}\s/.test(stripped)) {
+      // 取引データ行
+      const m = stripped.match(/^(\d{2}\/\d{2}\/\d{2})\s+(.*)/);
+      const [, datePart, rest] = m;
+      // rest が金額で始まる（店名なし）かつ保留中の店名がある → 店名を注入
+      if (/^\d{1,3}(?:,\d{3})+/.test(rest) && pendingStoreName) {
+        processedLines.push(`${datePart} ${pendingStoreName} ${rest}`);
+      } else {
+        processedLines.push(stripped);
+      }
+      pendingStoreName = ''; // データ行を処理したら必ずリセット
+    } else if (line && !HEADER_RE.test(line)) {
+      // データ行でもヘッダーでもない → 店名断片として次の行へ引き継ぐ
+      pendingStoreName = line;
+    } else {
+      pendingStoreName = '';
     }
+  }
+
+  // 行をパース
+  const transactions = [];
+  for (const lineText of processedLines) {
+    const tx = parseVisaLine(lineText);
+    if (tx) transactions.push(tx);
   }
 
   return transactions;
