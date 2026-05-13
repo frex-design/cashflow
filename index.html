@@ -5001,11 +5001,13 @@ function parseVisaLine(lineText) {
   // JCB形式: 「N回 金額」パターンで支払金額・店名を取得
   // 例: "オートデスク 99,000 1回 99,000 *"
   //     "X CORP. PAID FEATURES 4156978699 918 1回 918 *"
-  const jcbPayMatch = rest.match(/\d+回\s+(\d{1,3}(?:,\d{3})*|\d+)/);
+  // ※PDF.jsがCIDフォントで「１」と「回」を別アイテムに分割した場合
+  //   "1 回 968" となるため \s* で吸収する
+  const jcbPayMatch = rest.match(/\d+\s*回\s+(\d{1,3}(?:,\d{3})*|\d+)/);
   if (jcbPayMatch) {
     payAmount = parseInt(jcbPayMatch[1].replace(/,/g, ''));
-    // 「N回」より前のテキストから店名を取得
-    let beforePay = rest.slice(0, rest.indexOf(jcbPayMatch[0])).trim();
+    // 「N回」より前のテキストから店名を取得（indexで正確にスライス）
+    let beforePay = rest.slice(0, jcbPayMatch.index).trim();
     // 末尾の総利用金額を除去（例: " 3,214" や " 968"）
     beforePay = beforePay.replace(/\s+\d{1,3}(?:,\d{3})*$/, '').trim();
     // 末尾の8桁以上のマーチャントIDを除去（例: " 4152360599"）
