@@ -4947,6 +4947,14 @@ function toHalfWidth(str) {
     .replace(/　/g, ' ').replace(/／/g, '/');
 }
 
+// VISA取込用：取引先名クリーニング（括弧＋中身を除去・文字間スペースを除去）
+function cleanVisaStoreName(name) {
+  return name
+    .replace(/\s*[（(][^）)]*[）)]\s*/g, '') // 括弧とその中身を除去（例: (BtoB)、（BtoB））
+    .replace(/\s+/g, '')                     // 文字間の空白をすべて除去
+    .trim();
+}
+
 // 検索用テキスト正規化（大文字小文字・全角半角・カタカナひらがな を区別しない）
 function normalizeForSearch(str) {
   if (!str) return '';
@@ -4962,7 +4970,7 @@ const VISA_MAPPING = [
   // ── VISA カード専用（科目を明示） ───────────────────────────────
   { pattern: /MICROSOFT/i,          partner: 'マイクロソフト',    category: '通信費'  },
   { pattern: /ANTHROPIC/i,          partner: 'claude',           category: '通信費'  },
-  { pattern: /ソフトバンク.*(B|b)/,  partner: 'ソフトバンク（B）', category: '通信費'  },
+  { pattern: /ソフトバンク.*(B|b)/,  partner: 'ソフトバンクB',    category: '通信費'  },
   { pattern: /PARK[\s_-]?DIRECT/i,  partner: 'PARKDIRECT',       category: '地代家賃' },
   // ── JCB カード（科目省略 → defaultCategory=通信費 が使われる） ──
   { pattern: /CLAUDE\.AI/i,                    partner: 'claude'         },
@@ -5051,13 +5059,13 @@ function parseVisaLine(lineText) {
     const visaPayMatch = rest.match(/(\d{1,3}(?:,\d{3})+|\d{4,})\s+[\d１-９一二三四五六七八九]{1,2}\s+[\d１-９一二三四五六七八九]{1,2}\s+(\d{1,3}(?:,\d{3})*|\d+)/);
     if (visaPayMatch) {
       // 分割払い形式: お支払い金額は4番目の値
-      storeName = rest.substring(0, visaPayMatch.index).replace(/\s+/g, ' ').trim();
+      storeName = cleanVisaStoreName(rest.substring(0, visaPayMatch.index));
       payAmount = parseInt(visaPayMatch[2].replace(/,/g, ''));
     } else {
       // 通常払い: 最初の金額がご利用金額 = お支払い金額
       const amountMatches = [...rest.matchAll(/\b(\d{1,3}(?:,\d{3})+|\d{4,})\b/g)];
       if (amountMatches.length === 0) return null;
-      storeName = rest.substring(0, amountMatches[0].index).replace(/\s+/g, ' ').trim();
+      storeName = cleanVisaStoreName(rest.substring(0, amountMatches[0].index));
       payAmount = parseInt(amountMatches[0][1].replace(/,/g, ''));
     }
   }
