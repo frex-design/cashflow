@@ -6,6 +6,7 @@
 <title>日次キャッシュフロー管理 | フレックスデザイン</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%234f9cf9'/><text x='16' y='24' font-family='Georgia,serif' font-size='22' font-weight='700' fill='white' text-anchor='middle'>F</text></svg>">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&family=JetBrains+Mono:wght@400;600&display=swap');
 
@@ -494,9 +495,10 @@
     <div class="today-badge" id="todayLabel"></div>
     <button class="btn btn-ghost btn-sm" onclick="openCsvImport()">CSV取込</button>
     <button class="btn btn-ghost btn-sm" onclick="openCsvExport()">CSV出力</button>
+    <button class="btn btn-ghost btn-sm" onclick="openVisaImportModal()" style="color:#0284c7;border-color:#0284c7;" onmouseover="this.style.background='#0284c7';this.style.color='#fff'" onmouseout="this.style.background='';this.style.color='#0284c7'">💳 VISA取込</button>
     <button class="btn btn-ghost btn-sm" onclick="openFreeeModal()" style="color:#00a968;border-color:#00a968;" onmouseover="this.style.background='#00a968';this.style.color='#fff'" onmouseout="this.style.background='';this.style.color='#00a968'">📤 freee送信</button>
     <button class="btn btn-danger btn-sm" onclick="resetAll()">リセット</button>
-    <span id="verLabel" style="font-size:10px;color:var(--text3);font-family:var(--mono);letter-spacing:0.03em;white-space:nowrap;">Ver:20260513_161108partner</span>
+    <span id="verLabel" style="font-size:10px;color:var(--text3);font-family:var(--mono);letter-spacing:0.03em;white-space:nowrap;">Ver:20260513_164254partner</span>
   </div>
 </div>
 
@@ -1219,6 +1221,54 @@
           <tbody id="csvPreviewBody"></tbody>
         </table>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== VISA PDF IMPORT MODAL ===== -->
+<div id="visaImportModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.35); z-index:200; align-items:center; justify-content:center;">
+  <div style="background:var(--bg); border-radius:12px; padding:28px; width:580px; max-width:95vw; max-height:90vh; overflow-y:auto; box-shadow:0 8px 40px rgba(0,0,0,0.18);">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:18px;">
+      <div style="font-size:15px; font-weight:600; color:var(--text);">💳 VISA明細PDF取込（三井住友カード）</div>
+      <button onclick="closeVisaImportModal()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--text3);">✕</button>
+    </div>
+
+    <!-- カード選択 -->
+    <div style="margin-bottom:16px;">
+      <div style="font-size:12px;color:var(--text2);margin-bottom:8px;font-weight:500;">① カード選択</div>
+      <div style="display:flex;gap:8px;">
+        <button id="visaCardBtnV" onclick="selectVisaCard('card_visa')"
+          style="padding:8px 18px;border-radius:6px;border:2px solid #1a56db;background:#1a56db;color:#fff;cursor:pointer;font-size:13px;font-weight:600;transition:all 0.15s;">
+          💳 VISAカードV
+        </button>
+        <button id="visaCardBtnP" onclick="selectVisaCard('card_visa_p')"
+          style="padding:8px 18px;border-radius:6px;border:2px solid var(--border);background:transparent;color:var(--text2);cursor:pointer;font-size:13px;font-weight:400;transition:all 0.15s;">
+          💳 VISAカードP
+        </button>
+      </div>
+    </div>
+
+    <!-- ドロップゾーン -->
+    <div style="font-size:12px;color:var(--text2);margin-bottom:8px;font-weight:500;">② PDFをドロップ</div>
+    <div id="visaDropZone"
+      onclick="document.getElementById('visaPdfInput').click()"
+      ondragover="event.preventDefault();this.style.borderColor='var(--accent)';this.style.background='rgba(79,156,249,0.04)'"
+      ondragleave="this.style.borderColor='var(--border2)';this.style.background=''"
+      ondrop="event.preventDefault();this.style.borderColor='var(--border2)';this.style.background='';handleVisaPdfFile(event.dataTransfer.files[0])"
+      style="border:2px dashed var(--border2);border-radius:8px;padding:32px 16px;text-align:center;cursor:pointer;margin-bottom:16px;color:var(--text2);transition:all 0.15s;line-height:1.7;">
+      📄 PDFをここにドロップ<br>
+      <span style="font-size:12px;color:var(--text3);">またはクリックして選択（三井住友カードお支払い明細PDF）</span>
+    </div>
+    <input type="file" id="visaPdfInput" accept=".pdf" style="display:none"
+      onchange="handleVisaPdfFile(this.files[0]);this.value=''">
+
+    <!-- プレビューエリア -->
+    <div id="visaPreviewArea" style="display:none; margin-bottom:16px;"></div>
+
+    <!-- ボタン -->
+    <div style="display:flex; justify-content:flex-end; gap:8px;">
+      <button class="btn btn-ghost" onclick="closeVisaImportModal()">閉じる</button>
+      <button class="btn btn-primary" id="visaImportBtn" style="display:none;" onclick="importVisaEntries()">📥 取込実行</button>
     </div>
   </div>
 </div>
@@ -4870,6 +4920,237 @@ async function sendToFreee() {
   freeeLog(`─── 完了: ✅ ${ok}件成功 ❌ ${err}件失敗 ───`, err > 0 ? 'err' : 'ok');
   btn.disabled = false;
   btn.textContent = '📤 freeeへ送信';
+}
+
+// ===== VISA PDF IMPORT =====
+
+// 全角→半角変換
+function toHalfWidth(str) {
+  return str
+    .replace(/[Ａ-Ｚ]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0))
+    .replace(/[ａ-ｚ]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0))
+    .replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0))
+    .replace(/．/g, '.').replace(/，/g, ',')
+    .replace(/（/g, '(').replace(/）/g, ')')
+    .replace(/　/g, ' ').replace(/／/g, '/');
+}
+
+// 取引先マッピングルール（三井住友カード明細用）
+const VISA_MAPPING = [
+  { pattern: /MICROSOFT/i,          partner: 'マイクロソフト',    category: '通信費'  },
+  { pattern: /ANTHROPIC/i,          partner: 'claude',           category: '通信費'  },
+  { pattern: /ソフトバンク.*(B|b)/,  partner: 'ソフトバンク（B）', category: '通信費'  },
+  { pattern: /PARK[\s_-]?DIRECT/i,  partner: 'PARKDIRECT',       category: '地代家賃' },
+];
+
+function applyVisaMapping(storeName) {
+  const norm = toHalfWidth(storeName);
+  for (const rule of VISA_MAPPING) {
+    if (rule.pattern.test(norm)) {
+      return { partner: rule.partner, category: rule.category };
+    }
+  }
+  return { partner: storeName.trim(), category: '消耗品費' };
+}
+
+// 1行テキストから取引を解析
+function parseVisaLine(lineText) {
+  const line = toHalfWidth(lineText.trim());
+  // YY/MM/DD で始まる行のみ対象
+  const dateMatch = line.match(/^(\d{2})\/(\d{2})\/(\d{2})\s+(.*)/);
+  if (!dateMatch) return null;
+  const [, yy, mm, dd, rest] = dateMatch;
+  const date = `20${yy}-${mm}-${dd}`;
+
+  // カンマ区切り数値 または 4桁以上の数値を検出（1,2などの区分コードを除外）
+  const amountMatches = [...rest.matchAll(/\b(\d{1,3}(?:,\d{3})+|\d{4,})\b/g)];
+  if (amountMatches.length === 0) return null;
+
+  // 店名: 最初の数値より前のテキスト
+  const storeName = rest.substring(0, amountMatches[0].index).replace(/\s+/g, ' ').trim();
+  if (!storeName) return null;
+
+  // お支払い金額: 最後の数値（分割払い対応）
+  const payAmount = parseInt(amountMatches[amountMatches.length - 1][1].replace(/,/g, ''));
+  if (payAmount <= 0) return null;
+
+  return { date, storeName, amount: payAmount };
+}
+
+// PDFテキスト抽出・パース
+async function parseVisaPdf(arrayBuffer) {
+  // PDF.js workerをCDNから設定
+  pdfjsLib.GlobalWorkerOptions.workerSrc =
+    'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  const transactions = [];
+
+  for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+    const page = await pdf.getPage(pageNum);
+    const textContent = await page.getTextContent();
+
+    // Y座標でグループ化（±2px誤差を吸収）
+    const lineMap = new Map();
+    textContent.items.forEach(item => {
+      if (!item.str.trim()) return;
+      const y = Math.round(item.transform[5] / 2) * 2;
+      if (!lineMap.has(y)) lineMap.set(y, []);
+      lineMap.get(y).push({ x: item.transform[4], text: item.str });
+    });
+
+    // Y降順（上→下）→ X昇順（左→右）でテキスト結合
+    const lines = Array.from(lineMap.entries())
+      .sort((a, b) => b[0] - a[0])
+      .map(([, items]) => items.sort((a, b) => a.x - b.x).map(i => i.text).join(' '));
+
+    for (const lineText of lines) {
+      const tx = parseVisaLine(lineText);
+      if (tx) transactions.push(tx);
+    }
+  }
+
+  return transactions;
+}
+
+// ===== Modal 制御 =====
+let visaImportSelectedCard = 'card_visa';
+let visaParsedTransactions = [];
+
+function openVisaImportModal() {
+  visaImportSelectedCard = 'card_visa';
+  visaParsedTransactions = [];
+  document.getElementById('visaImportModal').style.display = 'flex';
+  document.getElementById('visaPreviewArea').style.display = 'none';
+  document.getElementById('visaImportBtn').style.display = 'none';
+  document.getElementById('visaDropZone').innerHTML =
+    '📄 PDFをここにドロップ<br><span style="font-size:12px;color:var(--text3);">またはクリックして選択（三井住友カードお支払い明細PDF）</span>';
+  // カードV をデフォルト選択状態に
+  selectVisaCard('card_visa');
+}
+
+function closeVisaImportModal() {
+  document.getElementById('visaImportModal').style.display = 'none';
+}
+
+function selectVisaCard(cardId) {
+  visaImportSelectedCard = cardId;
+  const btnV = document.getElementById('visaCardBtnV');
+  const btnP = document.getElementById('visaCardBtnP');
+  const isV = cardId === 'card_visa';
+  btnV.style.background    = isV ? '#1a56db' : 'transparent';
+  btnV.style.color         = isV ? '#fff'     : 'var(--text2)';
+  btnV.style.borderColor   = isV ? '#1a56db'  : 'var(--border)';
+  btnV.style.fontWeight    = isV ? '600'       : '400';
+  btnP.style.background    = !isV ? '#0284c7' : 'transparent';
+  btnP.style.color         = !isV ? '#fff'    : 'var(--text2)';
+  btnP.style.borderColor   = !isV ? '#0284c7' : 'var(--border)';
+  btnP.style.fontWeight    = !isV ? '600'      : '400';
+  // プレビューが表示中ならカード名を更新
+  if (visaParsedTransactions.length > 0) renderVisaPreview(visaParsedTransactions);
+}
+
+async function handleVisaPdfFile(file) {
+  if (!file || file.type !== 'application/pdf') {
+    showToast('PDFファイルを選択してください');
+    return;
+  }
+  const dropZone = document.getElementById('visaDropZone');
+  dropZone.innerHTML = '⏳ 解析中…';
+  document.getElementById('visaPreviewArea').style.display = 'none';
+  document.getElementById('visaImportBtn').style.display = 'none';
+  try {
+    const arrayBuffer = await file.arrayBuffer();
+    const txs = await parseVisaPdf(arrayBuffer);
+    visaParsedTransactions = txs;
+    if (txs.length === 0) {
+      dropZone.innerHTML = '⚠️ 取引データが見つかりませんでした<br><span style="font-size:12px;color:var(--text3);">PDFフォーマットを確認してください</span>';
+    } else {
+      dropZone.innerHTML = `✅ <strong>${file.name}</strong>（${txs.length}件検出）`;
+      renderVisaPreview(txs);
+    }
+  } catch (e) {
+    dropZone.innerHTML = '❌ 解析エラー: ' + e.message;
+    console.error('VISA PDF parse error:', e);
+  }
+}
+
+function renderVisaPreview(txs) {
+  const area = document.getElementById('visaPreviewArea');
+  const btn  = document.getElementById('visaImportBtn');
+  if (!txs.length) { area.style.display = 'none'; btn.style.display = 'none'; return; }
+
+  const cardName = ACCOUNTS.find(a => a.id === visaImportSelectedCard)?.name || '';
+  const totalAmt = txs.reduce((s, t) => s + t.amount, 0);
+
+  let html = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+    <span style="font-size:12px;color:var(--text2);">📋 <strong>${cardName}</strong> として <strong>${txs.length}件</strong> を登録します</span>
+    <span style="font-size:12px;font-family:var(--mono);color:var(--text);">合計 ¥${totalAmt.toLocaleString('ja-JP')}</span>
+  </div>`;
+  html += `<div style="max-height:260px;overflow-y:auto;border:1px solid var(--border);border-radius:6px;">
+  <table style="width:100%;border-collapse:collapse;font-size:12px;">
+  <thead><tr style="background:var(--bg3);position:sticky;top:0;">
+    <th style="padding:6px 8px;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap;">日付</th>
+    <th style="padding:6px 8px;text-align:left;border-bottom:1px solid var(--border);">取引先（変換後）</th>
+    <th style="padding:6px 8px;text-align:left;border-bottom:1px solid var(--border);">摘要（元店名）</th>
+    <th style="padding:6px 8px;text-align:left;border-bottom:1px solid var(--border);">科目</th>
+    <th style="padding:6px 8px;text-align:right;border-bottom:1px solid var(--border);white-space:nowrap;">金額</th>
+  </tr></thead><tbody>`;
+
+  txs.forEach(tx => {
+    const { partner, category } = applyVisaMapping(tx.storeName);
+    const catColor = category === '通信費' ? '#3b82f6' : category === '地代家賃' ? '#f59e0b' : 'var(--text3)';
+    html += `<tr style="border-bottom:1px solid var(--border2);">
+      <td style="padding:5px 8px;font-family:var(--mono);white-space:nowrap;">${tx.date}</td>
+      <td style="padding:5px 8px;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${partner}">${partner}</td>
+      <td style="padding:5px 8px;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text3);font-size:11px;" title="${tx.storeName}">${tx.storeName}</td>
+      <td style="padding:5px 8px;white-space:nowrap;"><span style="color:${catColor};font-size:11px;font-weight:600;">${category}</span></td>
+      <td style="padding:5px 8px;text-align:right;font-family:var(--mono);white-space:nowrap;">¥${tx.amount.toLocaleString('ja-JP')}</td>
+    </tr>`;
+  });
+
+  html += `</tbody></table></div>`;
+  area.innerHTML = html;
+  area.style.display = 'block';
+  btn.style.display  = 'inline-block';
+}
+
+async function importVisaEntries() {
+  if (!visaParsedTransactions.length) return;
+  const btn = document.getElementById('visaImportBtn');
+  btn.disabled = true;
+  btn.textContent = '登録中…';
+  try {
+    const newEntries = visaParsedTransactions.map(tx => {
+      const { partner, category } = applyVisaMapping(tx.storeName);
+      return {
+        id: nextId++,
+        date: tx.date,
+        account: visaImportSelectedCard,
+        type: 'out',
+        status: 'confirmed',
+        amount: tx.amount,
+        partner,
+        desc: tx.storeName,   // 元の店名を摘要として保存
+        category,
+        isCard: true,
+        isTransfer: false,
+        payMethod: '',
+        sort_order: null,
+      };
+    });
+    newEntries.forEach(e => entries.push(e));
+    await save();
+    renderAll();
+    closeVisaImportModal();
+    showToast(`✅ ${newEntries.length}件を登録しました`);
+  } catch (e) {
+    showToast('登録エラー: ' + e.message);
+    console.error(e);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '📥 取込実行';
+  }
 }
 
 checkAuth();
