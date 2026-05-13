@@ -1245,6 +1245,10 @@
           style="padding:8px 18px;border-radius:6px;border:2px solid var(--border);background:transparent;color:var(--text2);cursor:pointer;font-size:13px;font-weight:400;transition:all 0.15s;">
           💳 VISAカードP
         </button>
+        <button id="visaCardBtnJ" onclick="selectVisaCard('card_jib')"
+          style="padding:8px 18px;border-radius:6px;border:2px solid var(--border);background:transparent;color:var(--text2);cursor:pointer;font-size:13px;font-weight:400;transition:all 0.15s;">
+          💳 JCBカード
+        </button>
       </div>
     </div>
 
@@ -4935,45 +4939,80 @@ function toHalfWidth(str) {
     .replace(/　/g, ' ').replace(/／/g, '/');
 }
 
-// 取引先マッピングルール（三井住友カード明細用）
+// 取引先マッピングルール（VISA・JCB 共通）
+// category 省略 → applyVisaMapping の defaultCategory を使用
 const VISA_MAPPING = [
+  // ── VISA カード専用（科目を明示） ───────────────────────────────
   { pattern: /MICROSOFT/i,          partner: 'マイクロソフト',    category: '通信費'  },
   { pattern: /ANTHROPIC/i,          partner: 'claude',           category: '通信費'  },
   { pattern: /ソフトバンク.*(B|b)/,  partner: 'ソフトバンク（B）', category: '通信費'  },
   { pattern: /PARK[\s_-]?DIRECT/i,  partner: 'PARKDIRECT',       category: '地代家賃' },
+  // ── JCB カード（科目省略 → defaultCategory=通信費 が使われる） ──
+  { pattern: /CLAUDE\.AI/i,                    partner: 'claude'         },
+  { pattern: /ADOBE|アドビ/i,                  partner: 'adobe'          },
+  { pattern: /オートデスク|AUTODESK/i,          partner: 'オートデスク'   },
+  { pattern: /弥生/,                           partner: '弥生'           },
+  { pattern: /freee/i,                         partner: 'freee'          },
+  { pattern: /ピ.{0,3}シ.{0,3}エ.{0,3}株式会社/, partner: 'PCA'          },
+  { pattern: /サイボウズ/,                     partner: 'サイボウズ'     },
+  { pattern: /お名前/,                         partner: 'お名前.com'     },
+  { pattern: /LINE[\s　]*WORKS/i,              partner: 'LINE WORKS'     },
+  { pattern: /GAMMA\.APP/i,                    partner: 'Gamma'          },
+  { pattern: /X\s+CORP/i,                      partner: 'X（Twitter）'   },
+  { pattern: /CANVA/i,                         partner: 'Canva'          },
+  { pattern: /OPENAI|CHATGPT/i,               partner: 'OpenAI'         },
 ];
 
-function applyVisaMapping(storeName) {
+function applyVisaMapping(storeName, defaultCategory = '消耗品費') {
   const norm = toHalfWidth(storeName);
   for (const rule of VISA_MAPPING) {
     if (rule.pattern.test(norm)) {
-      return { partner: rule.partner, category: rule.category };
+      // category 省略ルールは defaultCategory を使用（JCBは全て通信費）
+      return { partner: rule.partner, category: rule.category || defaultCategory };
     }
   }
-  return { partner: storeName.trim(), category: '消耗品費' };
+  return { partner: storeName.trim(), category: defaultCategory };
 }
 
-// 1行テキストから取引を解析
+// 選択中カードのデフォルト科目（JCBは全て通信費）
+function getVisaDefaultCategory() {
+  return visaImportSelectedCard === 'card_jib' ? '通信費' : '消耗品費';
+}
+
+// 1行テキストから取引を解析（VISA・JCB両対応）
 function parseVisaLine(lineText) {
   const line = toHalfWidth(lineText.trim());
-  // YY/MM/DD で始まる行のみ対象
-  const dateMatch = line.match(/^(\d{2})\/(\d{2})\/(\d{2})\s+(.*)/);
+  // YYYY/MM/DD (JCB) または YY/MM/DD (VISA) で始まる行のみ対象
+  const dateMatch = line.match(/^(\d{2,4})\/(\d{2})\/(\d{2})\s+(.*)/);
   if (!dateMatch) return null;
-  const [, yy, mm, dd, rest] = dateMatch;
-  const date = `20${yy}-${mm}-${dd}`;
+  const [, yr, mm, dd, rest] = dateMatch;
+  const date = yr.length === 4 ? `${yr}-${mm}-${dd}` : `20${yr}-${mm}-${dd}`;
 
-  // カンマ区切り数値 または 4桁以上の数値を検出（1,2などの区分コードを除外）
-  const amountMatches = [...rest.matchAll(/\b(\d{1,3}(?:,\d{3})+|\d{4,})\b/g)];
-  if (amountMatches.length === 0) return null;
+  let storeName, payAmount;
 
-  // 店名: 最初の数値より前のテキスト
-  const storeName = rest.substring(0, amountMatches[0].index).replace(/\s+/g, ' ').trim();
-  if (!storeName) return null;
+  // JCB形式: 「N回 金額」パターンで支払金額・店名を取得
+  // 例: "オートデスク 99,000 1回 99,000 *"
+  //     "X CORP. PAID FEATURES 4156978699 918 1回 918 *"
+  const jcbPayMatch = rest.match(/\d+回\s+(\d{1,3}(?:,\d{3})*|\d+)/);
+  if (jcbPayMatch) {
+    payAmount = parseInt(jcbPayMatch[1].replace(/,/g, ''));
+    // 「N回」より前のテキストから店名を取得
+    let beforePay = rest.slice(0, rest.indexOf(jcbPayMatch[0])).trim();
+    // 末尾の総利用金額を除去（例: " 3,214" や " 968"）
+    beforePay = beforePay.replace(/\s+\d{1,3}(?:,\d{3})*$/, '').trim();
+    // 末尾の8桁以上のマーチャントIDを除去（例: " 4152360599"）
+    storeName = beforePay.replace(/\s+\d{8,}$/, '').trim();
+  } else {
+    // VISA形式: カンマ区切り数値 または 4桁以上の数値で金額を検出
+    const amountMatches = [...rest.matchAll(/\b(\d{1,3}(?:,\d{3})+|\d{4,})\b/g)];
+    if (amountMatches.length === 0) return null;
+    // 店名: 最初の数値より前のテキスト
+    storeName = rest.substring(0, amountMatches[0].index).replace(/\s+/g, ' ').trim();
+    // お支払い金額: 最後の数値（分割払い対応）
+    payAmount = parseInt(amountMatches[amountMatches.length - 1][1].replace(/,/g, ''));
+  }
 
-  // お支払い金額: 最後の数値（分割払い対応）
-  const payAmount = parseInt(amountMatches[amountMatches.length - 1][1].replace(/,/g, ''));
-  if (payAmount <= 0) return null;
-
+  if (!storeName || payAmount <= 0) return null;
   return { date, storeName, amount: payAmount };
 }
 
@@ -5017,7 +5056,8 @@ async function parseVisaPdf(arrayBuffer) {
   // 例: 'ANTHROPIC: CLAUDE TEAM (ANTHR' → 'B# 26/04/03 7,067 ...' → 'OPIC.COM)'
   const processedLines = [];
   let pendingStoreName = '';
-  const HEADER_RE = /^（お|^ご利用|^現地通貨|^三井住友|^藤嶋|^カード|^\d{4}年|^お名前|^お支払|^金融|^支店|^科目|^お問|^※/;
+  // ヘッダー・フッター・補足行を除外（全角→半角変換後の文字列で照合）
+  const HEADER_RE = /^\(お|\(換算|^ご利用|^現地通貨|^三井住友|^藤嶋|^カード|^\d{4}年|^お名前|^お支払|^金融|^支店|^科目|^お問|^※|^◆|^≪|^●|^★|^【|^=/;
 
   for (const rawLine of rawLines) {
     const line = toHalfWidth(rawLine.trim());
@@ -5074,18 +5114,21 @@ function closeVisaImportModal() {
 
 function selectVisaCard(cardId) {
   visaImportSelectedCard = cardId;
-  const btnV = document.getElementById('visaCardBtnV');
-  const btnP = document.getElementById('visaCardBtnP');
-  const isV = cardId === 'card_visa';
-  btnV.style.background    = isV ? '#1a56db' : 'transparent';
-  btnV.style.color         = isV ? '#fff'     : 'var(--text2)';
-  btnV.style.borderColor   = isV ? '#1a56db'  : 'var(--border)';
-  btnV.style.fontWeight    = isV ? '600'       : '400';
-  btnP.style.background    = !isV ? '#0284c7' : 'transparent';
-  btnP.style.color         = !isV ? '#fff'    : 'var(--text2)';
-  btnP.style.borderColor   = !isV ? '#0284c7' : 'var(--border)';
-  btnP.style.fontWeight    = !isV ? '600'      : '400';
-  // プレビューが表示中ならカード名を更新
+  const CARD_BTNS = [
+    { elemId: 'visaCardBtnV', cardId: 'card_visa',   color: '#1a56db' },
+    { elemId: 'visaCardBtnP', cardId: 'card_visa_p', color: '#0284c7' },
+    { elemId: 'visaCardBtnJ', cardId: 'card_jib',    color: '#7e3af2' },
+  ];
+  CARD_BTNS.forEach(({ elemId, cardId: cid, color }) => {
+    const btn = document.getElementById(elemId);
+    if (!btn) return;
+    const active = cid === cardId;
+    btn.style.background  = active ? color          : 'transparent';
+    btn.style.color       = active ? '#fff'         : 'var(--text2)';
+    btn.style.borderColor = active ? color          : 'var(--border)';
+    btn.style.fontWeight  = active ? '600'          : '400';
+  });
+  // プレビューが表示中ならカード名・科目を再描画
   if (visaParsedTransactions.length > 0) renderVisaPreview(visaParsedTransactions);
 }
 
@@ -5137,7 +5180,7 @@ function renderVisaPreview(txs) {
   </tr></thead><tbody>`;
 
   txs.forEach(tx => {
-    const { partner, category } = applyVisaMapping(tx.storeName);
+    const { partner, category } = applyVisaMapping(tx.storeName, getVisaDefaultCategory());
     const catColor = category === '通信費' ? '#3b82f6' : category === '地代家賃' ? '#f59e0b' : 'var(--text3)';
     html += `<tr style="border-bottom:1px solid var(--border2);">
       <td style="padding:5px 8px;font-family:var(--mono);white-space:nowrap;">${tx.date}</td>
@@ -5161,7 +5204,7 @@ async function importVisaEntries() {
   btn.textContent = '登録中…';
   try {
     const newEntries = visaParsedTransactions.map(tx => {
-      const { partner, category } = applyVisaMapping(tx.storeName);
+      const { partner, category } = applyVisaMapping(tx.storeName, getVisaDefaultCategory());
       return {
         id: nextId++,
         date: tx.date,
