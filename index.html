@@ -4998,22 +4998,44 @@ function parseVisaLine(lineText) {
 
   let storeName, payAmount;
 
-  // JCB形式: 「N回 金額」パターンで支払金額・店名を取得
-  // 例: "オートデスク 99,000 1回 99,000 *"
-  //     "X CORP. PAID FEATURES 4156978699 918 1回 918 *"
-  // ※PDF.jsがCIDフォントで「１」と「回」を別アイテムに分割した場合
-  //   "1 回 968" となるため \s* で吸収する
-  const jcbPayMatch = rest.match(/\d+\s*回\s+(\d{1,3}(?:,\d{3})*|\d+)/);
-  if (jcbPayMatch) {
-    payAmount = parseInt(jcbPayMatch[1].replace(/,/g, ''));
-    // 「N回」より前のテキストから店名を取得（indexで正確にスライス）
-    let beforePay = rest.slice(0, jcbPayMatch.index).trim();
-    // 末尾の総利用金額を除去（例: " 3,214" や " 968"）
-    beforePay = beforePay.replace(/\s+\d{1,3}(?:,\d{3})*$/, '').trim();
-    // 末尾の8桁以上のマーチャントIDを除去（例: " 4152360599"）
-    storeName = beforePay.replace(/\s+\d{8,}$/, '').trim();
+  if (yr.length === 4) {
+    // ── JCB形式（YYYY/MM/DD）──────────────────────────────────────────
+    // お支払い金額は必ず「*」や「(現地通貨額)」の直前にある最後の数値
+    // 「回」文字に依存せず末尾から逆算することで、PDF.jsの文字化けに対応
+    //
+    // 例1: "X CORP. 4156978699 918 1回 918 *"   → お支払い金額=918
+    // 例2: "CLAUDE.AI 4152360599 3,214 1回 3,214 (現地通貨額)…" → 3,214
+    // 例3: "弥生株式会社 968 1回 968 *"           → 968
+
+    // ① 外貨情報・末尾の * を除去してクリーンな文字列を作る
+    const cleanRest = rest
+      .replace(/\s*[（(]現地通貨額.*$/, '')
+      .replace(/\s*\*\s*$/, '')
+      .trim();
+
+    // ② 末尾の数値 = お支払い金額
+    const payAmtMatch = cleanRest.match(/(\d{1,3}(?:,\d{3})*|\d+)\s*$/);
+    if (!payAmtMatch) return null;
+    payAmount = parseInt(payAmtMatch[1].replace(/,/g, ''));
+
+    // ③ お支払い金額を末尾から除去
+    let before = cleanRest.slice(0, cleanRest.lastIndexOf(payAmtMatch[1])).trim();
+
+    // ④ 支払区分「N回」または「N」（回が文字化け時も考慮）を除去
+    before = before.replace(/\s+\d+\s*回?\s*$/, '').trim();
+
+    // ⑤ ご利用金額（残った末尾の数値）を除去
+    const riyoMatch = before.match(/(\d{1,3}(?:,\d{3})*|\d+)\s*$/);
+    if (riyoMatch) {
+      before = before.slice(0, before.lastIndexOf(riyoMatch[1])).trim();
+    }
+
+    // ⑥ マーチャントID（8桁以上の連続数字）を除去
+    storeName = before.replace(/\s+\d{8,}\s*$/, '').trim();
+
   } else {
-    // VISA形式: カンマ区切り数値 または 4桁以上の数値で金額を検出
+    // ── VISA形式（YY/MM/DD）──────────────────────────────────────────
+    // カンマ区切り数値 または 4桁以上の数値で金額を検出
     const amountMatches = [...rest.matchAll(/\b(\d{1,3}(?:,\d{3})+|\d{4,})\b/g)];
     if (amountMatches.length === 0) return null;
     // 店名: 最初の数値より前のテキスト
