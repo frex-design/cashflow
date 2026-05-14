@@ -499,7 +499,7 @@
     <button class="btn btn-ghost btn-sm" onclick="openPaildModal()" style="color:#1abc9c;border-color:#1abc9c;" onmouseover="this.style.background='#1abc9c';this.style.color='#fff'" onmouseout="this.style.background='';this.style.color='#1abc9c'">💳 Paild取込</button>
     <button class="btn btn-ghost btn-sm" onclick="openFreeeModal()" style="color:#00a968;border-color:#00a968;" onmouseover="this.style.background='#00a968';this.style.color='#fff'" onmouseout="this.style.background='';this.style.color='#00a968'">📤 freee送信</button>
     <button class="btn btn-danger btn-sm" onclick="resetAll()">リセット</button>
-    <span id="verLabel" style="font-size:10px;color:var(--text3);font-family:var(--mono);letter-spacing:0.03em;white-space:nowrap;">Ver:20260514_123159partner</span>
+    <span id="verLabel" style="font-size:10px;color:var(--text3);font-family:var(--mono);letter-spacing:0.03em;white-space:nowrap;">Ver:20260514_124004partner</span>
   </div>
 </div>
 
@@ -5477,13 +5477,22 @@ function parsePaildStoreName(description) {
   return description.slice(idx + 1).trim();
 }
 
-async function loadPaildImportedIds() {
-  // plan_manualから取込済みIDリストを取得
-  const data = await sbFetch(`/rest/v1/plan_manual?key=eq.${PAILD_IDS_KEY}&select=memo_text`);
-  if (data?.[0]?.memo_text) {
-    try { return new Set(JSON.parse(data[0].memo_text).map(Number)); } catch {}
+async function loadPaildImportedState() {
+  // ① plan_manualから取込済みfreee IDを取得
+  const planData = await sbFetch(`/rest/v1/plan_manual?key=eq.${PAILD_IDS_KEY}&select=memo_text`);
+  let savedIds = new Set();
+  if (planData?.[0]?.memo_text) {
+    try { savedIds = new Set(JSON.parse(planData[0].memo_text).map(Number)); } catch {}
   }
-  return new Set();
+
+  // ② Supabaseのpaildエントリ（date+amount）を取得し、削除済みを検知
+  const paildRows = await sbFetch('/rest/v1/entries?account=eq.paild&select=date,amount');
+  const existingCombos = new Set((paildRows || []).map(r => `${r.date}_${Number(r.amount)}`));
+
+  // 判定ルール：
+  //   取込済み = plan_manualにIDあり AND Supabaseにまだ存在する
+  //   削除済み = plan_manualにIDあり AND Supabaseに存在しない → 新規扱いで再取込み可
+  return { savedIds, existingCombos };
 }
 
 async function savePaildImportedIds(idSet) {
@@ -5532,9 +5541,9 @@ async function fetchPaildTxns() {
       return;
     }
 
-    // plan_manualから取込済みIDを取得（スキーマ変更不要）
+    // plan_manual + Supabase実エントリで重複チェック（削除済みは再取込み可）
     statusEl.textContent = '取込済みデータを照合中…';
-    const existingIds = await loadPaildImportedIds();
+    const { savedIds, existingCombos } = await loadPaildImportedState();
 
     // 各明細に新規/スキップフラグを付与
     paildFetchedTxns = txns.map(t => ({
@@ -5542,7 +5551,9 @@ async function fetchPaildTxns() {
       date: t.date,
       amount: t.amount,
       storeName: parsePaildStoreName(t.description || ''),
-      isNew: !existingIds.has(t.id),
+      // 取込済み = IDがplan_manualにある AND Supabaseにdate+amountが存在する
+      // 削除済み = IDはあるがエントリが消えている → 新規扱い（再取込み可）
+      isNew: !savedIds.has(t.id) || !existingCombos.has(`${t.date}_${t.amount}`),
     }));
 
     renderPaildPreview();
@@ -5607,7 +5618,7 @@ async function importPaildEntries() {
       date: t.date,
       account: 'paild',
       type: 'out',
-      status: 'pending',
+      status: 'confirmed',
       amount: t.amount,
       partner: t.storeName,
       desc: t.storeName,
@@ -5621,9 +5632,9 @@ async function importPaildEntries() {
     await save();
 
     // 取込済みIDをplan_manualに保存（重複防止）
-    const existingIds = await loadPaildImportedIds();
-    newItems.forEach(t => existingIds.add(t.id));
-    await savePaildImportedIds(existingIds);
+    const { savedIds } = await loadPaildImportedState();
+    newItems.forEach(t => savedIds.add(t.id));
+    await savePaildImportedIds(savedIds);
 
     renderAll();
     closePaildModal();
