@@ -496,9 +496,10 @@
     <button class="btn btn-ghost btn-sm" onclick="openCsvImport()">CSV取込</button>
     <button class="btn btn-ghost btn-sm" onclick="openCsvExport()">CSV出力</button>
     <button class="btn btn-ghost btn-sm" onclick="openVisaImportModal()" style="color:#0284c7;border-color:#0284c7;" onmouseover="this.style.background='#0284c7';this.style.color='#fff'" onmouseout="this.style.background='';this.style.color='#0284c7'">💳 VISA/JCB取込</button>
+    <button class="btn btn-ghost btn-sm" onclick="openPaildModal()" style="color:#1abc9c;border-color:#1abc9c;" onmouseover="this.style.background='#1abc9c';this.style.color='#fff'" onmouseout="this.style.background='';this.style.color='#1abc9c'">📥 Paild取込</button>
     <button class="btn btn-ghost btn-sm" onclick="openFreeeModal()" style="color:#00a968;border-color:#00a968;" onmouseover="this.style.background='#00a968';this.style.color='#fff'" onmouseout="this.style.background='';this.style.color='#00a968'">📤 freee送信</button>
     <button class="btn btn-danger btn-sm" onclick="resetAll()">リセット</button>
-    <span id="verLabel" style="font-size:10px;color:var(--text3);font-family:var(--mono);letter-spacing:0.03em;white-space:nowrap;">Ver:20260513_164254partner</span>
+    <span id="verLabel" style="font-size:10px;color:var(--text3);font-family:var(--mono);letter-spacing:0.03em;white-space:nowrap;">Ver:20260514_112749partner</span>
   </div>
 </div>
 
@@ -1388,6 +1389,55 @@
   </div>
 </div>
 
+<!-- ===== PAILD IMPORT MODAL ===== -->
+<div id="paildModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.35); z-index:200; align-items:center; justify-content:center;">
+  <div style="background:var(--bg); border-radius:12px; padding:28px; width:580px; max-width:95vw; max-height:88vh; overflow-y:auto; box-shadow:0 8px 40px rgba(0,0,0,0.18);">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:18px;">
+      <div style="font-size:15px; font-weight:600; color:var(--text);">📥 Paild取込（FD_CT送信用）</div>
+      <button onclick="closePaildModal()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--text3);">✕</button>
+    </div>
+
+    <!-- 説明 -->
+    <div style="background:rgba(26,188,156,0.08); border:1px solid rgba(26,188,156,0.3); border-radius:6px; padding:10px 14px; margin-bottom:16px; font-size:12px; color:var(--text2); line-height:1.7;">
+      freeeの未登録Paild明細を取込みます。取込済みのデータは自動でスキップします。<br>
+      科目は取込後に手動で設定してください。ステータスは「予定」で登録されます。
+    </div>
+
+    <!-- ステータス -->
+    <div id="paildStatus" style="font-size:12px; color:var(--text3); margin-bottom:12px;">freeeから取得中…</div>
+
+    <!-- プレビューカウント -->
+    <div id="paildCountBar" style="display:none; background:var(--bg3); border:1px solid var(--border); border-radius:6px; padding:10px 14px; margin-bottom:12px;">
+      <div style="display:flex; gap:20px; font-size:13px; color:var(--text2);">
+        <span>✅ 新規: <strong style="color:#1abc9c;" id="paildCountNew">0</strong>件</span>
+        <span>⏭ 取込済み: <strong style="color:var(--text3);" id="paildCountSkip">0</strong>件</span>
+        <span>合計: <strong style="color:var(--accent);" id="paildCountTotal">0</strong>件</span>
+      </div>
+    </div>
+
+    <!-- プレビューテーブル -->
+    <div id="paildPreviewWrap" style="display:none; overflow-x:auto; border-radius:6px; border:1px solid var(--border); margin-bottom:16px; max-height:340px; overflow-y:auto;">
+      <table style="width:100%; border-collapse:collapse; font-size:12px;">
+        <thead style="background:var(--bg3); position:sticky; top:0; z-index:1;">
+          <tr>
+            <th style="padding:8px 10px; text-align:left; color:var(--text2); font-weight:600; white-space:nowrap;">状態</th>
+            <th style="padding:8px 10px; text-align:left; color:var(--text2); font-weight:600; white-space:nowrap;">日付</th>
+            <th style="padding:8px 10px; text-align:left; color:var(--text2); font-weight:600;">店舗</th>
+            <th style="padding:8px 10px; text-align:right; color:var(--text2); font-weight:600; white-space:nowrap;">金額</th>
+          </tr>
+        </thead>
+        <tbody id="paildPreviewBody"></tbody>
+      </table>
+    </div>
+
+    <!-- ボタン -->
+    <div style="display:flex; justify-content:flex-end; gap:8px;">
+      <button class="btn btn-ghost" onclick="closePaildModal()">閉じる</button>
+      <button class="btn btn-primary" id="paildImportBtn" style="display:none; background:#1abc9c; border-color:#1abc9c;" onclick="importPaildEntries()">📥 取込実行</button>
+    </div>
+  </div>
+</div>
+
 <!-- ===== FREEE MODAL ===== -->
 <div id="freeeModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.35); z-index:200; align-items:center; justify-content:center;">
   <div style="background:var(--bg); border-radius:12px; padding:28px; width:520px; max-width:95vw; max-height:85vh; overflow-y:auto; box-shadow:0 8px 40px rgba(0,0,0,0.18);">
@@ -1506,6 +1556,7 @@ function entryToRow(e) {
     category: e.category||null, pay_method: e.payMethod||null,
     is_card: e.isCard||false, is_transfer: e.isTransfer||false,
     sort_order: e.sort_order != null ? e.sort_order : e.id,
+    freee_txn_id: e.freee_txn_id || null,
   };
 }
 function rowToEntry(r) {
@@ -1515,6 +1566,7 @@ function rowToEntry(r) {
     category: r.category||'', payMethod: r.pay_method||'',
     isCard: r.is_card||false, isTransfer: r.is_transfer||false,
     sort_order: r.sort_order != null ? r.sort_order : r.id,
+    freee_txn_id: r.freee_txn_id || null,
   };
 }
 function showSyncStatus(msg) {
@@ -5405,6 +5457,158 @@ async function importVisaEntries() {
     showToast(`✅ ${newEntries.length}件を登録しました`);
   } catch (e) {
     showToast('登録エラー: ' + e.message);
+    console.error(e);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '📥 取込実行';
+  }
+}
+
+// ===== PAILD IMPORT =====
+const PAILD_WALLETABLE_ID = 7837954; // FD_CT送信用Paild（freee wallet id）
+let paildFetchedTxns = []; // { id, date, amount, storeName, isNew }
+
+function parsePaildStoreName(description) {
+  // "佐藤 優太_バロー(NISSHIKI)" → "バロー(NISSHIKI)"
+  // "_" がない場合はそのまま返す
+  const idx = description.indexOf('_');
+  if (idx === -1) return description.trim();
+  return description.slice(idx + 1).trim();
+}
+
+function openPaildModal() {
+  document.getElementById('paildModal').style.display = 'flex';
+  paildFetchedTxns = [];
+  document.getElementById('paildStatus').textContent = 'freeeから取得中…';
+  document.getElementById('paildCountBar').style.display = 'none';
+  document.getElementById('paildPreviewWrap').style.display = 'none';
+  document.getElementById('paildImportBtn').style.display = 'none';
+  document.getElementById('paildPreviewBody').innerHTML = '';
+  fetchPaildTxns();
+}
+
+function closePaildModal() {
+  document.getElementById('paildModal').style.display = 'none';
+}
+
+async function fetchPaildTxns() {
+  const statusEl = document.getElementById('paildStatus');
+  try {
+    // freeeトークン取得
+    const token = await getValidFreeeToken();
+
+    // freeeからPaild明細を取得
+    statusEl.textContent = 'freeeから明細を取得中…';
+    const url = `${FREEE_API_BASE}/api/1/wallet_txns?company_id=${FREEE_COMPANY_ID}&walletable_id=${PAILD_WALLETABLE_ID}&walletable_type=wallet&limit=100`;
+    const res = await fetch(url, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'X-Api-Version': '2020-06-15',
+      },
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(json.message || `HTTP ${res.status}`);
+
+    const txns = json.wallet_txns || [];
+    if (!txns.length) {
+      statusEl.textContent = 'freeeにPaild明細がありません。';
+      return;
+    }
+
+    // Supabaseから取込済みfreee_txn_idを取得
+    statusEl.textContent = '取込済みデータを照合中…';
+    const existing = await sbFetch('/rest/v1/entries?select=freee_txn_id&freee_txn_id=not.is.null');
+    const existingIds = new Set((existing || []).map(r => Number(r.freee_txn_id)));
+
+    // 各明細に新規/スキップフラグを付与
+    paildFetchedTxns = txns.map(t => ({
+      id: t.id,
+      date: t.date,
+      amount: t.amount,
+      storeName: parsePaildStoreName(t.description || ''),
+      isNew: !existingIds.has(t.id),
+    }));
+
+    renderPaildPreview();
+
+  } catch (e) {
+    statusEl.textContent = '取得エラー: ' + e.message;
+    console.error(e);
+  }
+}
+
+function renderPaildPreview() {
+  const newItems  = paildFetchedTxns.filter(t => t.isNew);
+  const skipItems = paildFetchedTxns.filter(t => !t.isNew);
+
+  document.getElementById('paildCountNew').textContent   = newItems.length;
+  document.getElementById('paildCountSkip').textContent  = skipItems.length;
+  document.getElementById('paildCountTotal').textContent = paildFetchedTxns.length;
+  document.getElementById('paildCountBar').style.display = 'block';
+  document.getElementById('paildStatus').textContent     = newItems.length
+    ? `${newItems.length}件の新規明細が見つかりました。`
+    : '新規の明細はありません（すべて取込済み）。';
+
+  const tbody = document.getElementById('paildPreviewBody');
+  tbody.innerHTML = '';
+
+  // 新規→スキップの順で表示
+  [...newItems, ...skipItems].forEach(t => {
+    const tr = document.createElement('tr');
+    tr.style.borderTop = '1px solid var(--border)';
+    if (!t.isNew) tr.style.opacity = '0.4';
+    tr.innerHTML = `
+      <td style="padding:7px 10px; white-space:nowrap;">
+        ${t.isNew
+          ? '<span style="color:#1abc9c;font-weight:600;">✅ 新規</span>'
+          : '<span style="color:var(--text3);">⏭ 済</span>'}
+      </td>
+      <td style="padding:7px 10px; white-space:nowrap; color:var(--text2);">${t.date}</td>
+      <td style="padding:7px 10px; color:var(--text);">${t.storeName}</td>
+      <td style="padding:7px 10px; text-align:right; white-space:nowrap; color:var(--text); font-family:var(--mono);">
+        ¥${t.amount.toLocaleString()}
+      </td>`;
+    tbody.appendChild(tr);
+  });
+
+  document.getElementById('paildPreviewWrap').style.display = 'block';
+  const importBtn = document.getElementById('paildImportBtn');
+  importBtn.style.display = newItems.length ? 'inline-block' : 'none';
+}
+
+async function importPaildEntries() {
+  const newItems = paildFetchedTxns.filter(t => t.isNew);
+  if (!newItems.length) return;
+
+  const btn = document.getElementById('paildImportBtn');
+  btn.disabled = true;
+  btn.textContent = '登録中…';
+
+  try {
+    const newEntries = newItems.map(t => ({
+      id: nextId++,
+      date: t.date,
+      account: 'paild',
+      type: 'out',
+      status: 'pending',
+      amount: t.amount,
+      partner: t.storeName,
+      desc: t.storeName,
+      category: '',
+      isCard: false,
+      isTransfer: false,
+      payMethod: '',
+      sort_order: null,
+      freee_txn_id: t.id,
+    }));
+
+    newEntries.forEach(e => entries.push(e));
+    await save();
+    renderAll();
+    closePaildModal();
+    showToast(`✅ Paild ${newEntries.length}件を取込みました`);
+  } catch (e) {
+    showToast('取込エラー: ' + e.message);
     console.error(e);
   } finally {
     btn.disabled = false;
