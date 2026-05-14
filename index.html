@@ -499,7 +499,7 @@
     <button class="btn btn-ghost btn-sm" onclick="openPaildModal()" style="color:#1abc9c;border-color:#1abc9c;" onmouseover="this.style.background='#1abc9c';this.style.color='#fff'" onmouseout="this.style.background='';this.style.color='#1abc9c'">📥 Paild取込</button>
     <button class="btn btn-ghost btn-sm" onclick="openFreeeModal()" style="color:#00a968;border-color:#00a968;" onmouseover="this.style.background='#00a968';this.style.color='#fff'" onmouseout="this.style.background='';this.style.color='#00a968'">📤 freee送信</button>
     <button class="btn btn-danger btn-sm" onclick="resetAll()">リセット</button>
-    <span id="verLabel" style="font-size:10px;color:var(--text3);font-family:var(--mono);letter-spacing:0.03em;white-space:nowrap;">Ver:20260514_112749partner</span>
+    <span id="verLabel" style="font-size:10px;color:var(--text3);font-family:var(--mono);letter-spacing:0.03em;white-space:nowrap;">Ver:20260514_113230partner</span>
   </div>
 </div>
 
@@ -1556,7 +1556,6 @@ function entryToRow(e) {
     category: e.category||null, pay_method: e.payMethod||null,
     is_card: e.isCard||false, is_transfer: e.isTransfer||false,
     sort_order: e.sort_order != null ? e.sort_order : e.id,
-    freee_txn_id: e.freee_txn_id || null,
   };
 }
 function rowToEntry(r) {
@@ -1566,7 +1565,6 @@ function rowToEntry(r) {
     category: r.category||'', payMethod: r.pay_method||'',
     isCard: r.is_card||false, isTransfer: r.is_transfer||false,
     sort_order: r.sort_order != null ? r.sort_order : r.id,
-    freee_txn_id: r.freee_txn_id || null,
   };
 }
 function showSyncStatus(msg) {
@@ -5465,8 +5463,11 @@ async function importVisaEntries() {
 }
 
 // ===== PAILD IMPORT =====
-const PAILD_WALLETABLE_ID = 7837954; // FD_CT送信用Paild（freee wallet id）
-let paildFetchedTxns = []; // { id, date, amount, storeName, isNew }
+// 取込済みIDはplan_manualテーブル（key: paild_imported_ids）にJSON配列で保存
+// → Supabaseのスキーマ変更不要
+const PAILD_WALLETABLE_ID  = 7837954; // FD_CT送信用Paild（freee wallet id）
+const PAILD_IDS_KEY        = 'paild_imported_ids';
+let paildFetchedTxns       = []; // { id, date, amount, storeName, isNew }
 
 function parsePaildStoreName(description) {
   // "佐藤 優太_バロー(NISSHIKI)" → "バロー(NISSHIKI)"
@@ -5474,6 +5475,22 @@ function parsePaildStoreName(description) {
   const idx = description.indexOf('_');
   if (idx === -1) return description.trim();
   return description.slice(idx + 1).trim();
+}
+
+async function loadPaildImportedIds() {
+  // plan_manualから取込済みIDリストを取得
+  const data = await sbFetch(`/rest/v1/plan_manual?key=eq.${PAILD_IDS_KEY}&select=memo_text`);
+  if (data?.[0]?.memo_text) {
+    try { return new Set(JSON.parse(data[0].memo_text).map(Number)); } catch {}
+  }
+  return new Set();
+}
+
+async function savePaildImportedIds(idSet) {
+  // plan_manualに取込済みIDリストを保存（upsert）
+  const arr = Array.from(idSet);
+  await sbFetch(`/rest/v1/plan_manual?on_conflict=key`, 'POST',
+    [{ key: PAILD_IDS_KEY, value: arr.length, memo_text: JSON.stringify(arr) }]);
 }
 
 function openPaildModal() {
@@ -5515,10 +5532,9 @@ async function fetchPaildTxns() {
       return;
     }
 
-    // Supabaseから取込済みfreee_txn_idを取得
+    // plan_manualから取込済みIDを取得（スキーマ変更不要）
     statusEl.textContent = '取込済みデータを照合中…';
-    const existing = await sbFetch('/rest/v1/entries?select=freee_txn_id&freee_txn_id=not.is.null');
-    const existingIds = new Set((existing || []).map(r => Number(r.freee_txn_id)));
+    const existingIds = await loadPaildImportedIds();
 
     // 各明細に新規/スキップフラグを付与
     paildFetchedTxns = txns.map(t => ({
@@ -5585,6 +5601,7 @@ async function importPaildEntries() {
   btn.textContent = '登録中…';
 
   try {
+    // エントリ登録
     const newEntries = newItems.map(t => ({
       id: nextId++,
       date: t.date,
@@ -5599,11 +5616,15 @@ async function importPaildEntries() {
       isTransfer: false,
       payMethod: '',
       sort_order: null,
-      freee_txn_id: t.id,
     }));
-
     newEntries.forEach(e => entries.push(e));
     await save();
+
+    // 取込済みIDをplan_manualに保存（重複防止）
+    const existingIds = await loadPaildImportedIds();
+    newItems.forEach(t => existingIds.add(t.id));
+    await savePaildImportedIds(existingIds);
+
     renderAll();
     closePaildModal();
     showToast(`✅ Paild ${newEntries.length}件を取込みました`);
