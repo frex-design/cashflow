@@ -499,7 +499,7 @@
     <button class="btn btn-ghost btn-sm" onclick="openPaildModal()" style="color:#1abc9c;border-color:#1abc9c;" onmouseover="this.style.background='#1abc9c';this.style.color='#fff'" onmouseout="this.style.background='';this.style.color='#1abc9c'">💳 Paild取込</button>
     <button class="btn btn-ghost btn-sm" onclick="openFreeeModal()" style="color:#00a968;border-color:#00a968;" onmouseover="this.style.background='#00a968';this.style.color='#fff'" onmouseout="this.style.background='';this.style.color='#00a968'">📤 freee送信</button>
     <button class="btn btn-danger btn-sm" onclick="resetAll()">リセット</button>
-    <span id="verLabel" style="font-size:10px;color:var(--text3);font-family:var(--mono);letter-spacing:0.03em;white-space:nowrap;">Ver:20260514_130107partner</span>
+    <span id="verLabel" style="font-size:10px;color:var(--text3);font-family:var(--mono);letter-spacing:0.03em;white-space:nowrap;">Ver:20260518_120724partner</span>
   </div>
 </div>
 
@@ -1061,7 +1061,7 @@
           <li>「送信」ボタンで一括送信（確定データのみ）</li>
         </ol>
         <div style="margin-top:8px;padding:8px 12px;background:var(--bg2);border-radius:6px;color:var(--text3);font-size:11px;">
-          ⚠️ 給与手当・役員報酬はfreee HR連携のためスキップ。アマゾン口座は「未払金」仕訳として送信。
+          ⚠️ 給与手当・役員報酬は「未払金→銀行口座」の振込仕訳として送信（freee HR給与計算と連動）。アマゾン口座は「未払金」仕訳として送信。
         </div>
       </div>
 
@@ -1495,7 +1495,7 @@
         <span>📝 取引: <strong style="color:var(--accent);" id="freeePreviewDeal">-</strong>件</span>
         <span>⏭ スキップ: <strong style="color:var(--text3);" id="freeePreviewSkip">-</strong>件</span>
       </div>
-      <div style="font-size:11px; color:var(--text3); margin-top:5px;">※ 給与手当・役員報酬・資金移動の入金側はスキップ</div>
+      <div style="font-size:11px; color:var(--text3); margin-top:5px;">※ 資金移動の入金側はスキップ。給与手当・役員報酬は未払金消込仕訳として送信</div>
     </div>
 
     <!-- ログ -->
@@ -4757,6 +4757,8 @@ const FREEE_ACCOUNT_ITEM_MAP = {
   '車両費':           { id: 604942770,   tax: 136 },
   '通信費':           { id: 604942760,   tax: 136 },
   '未払金':           { id: 604942698,   tax: 20  },
+  '給与手当':         { id: 604942698,   tax: 20  },  // 手取り振込仕訳（未払金→銀行口座）
+  '役員報酬':         { id: 604942698,   tax: 20  },  // 手取り振込仕訳（未払金→銀行口座）
   '厚生年金/健康保険': { id: 604942750,   tax: 20  },
   '所得税/住民税':    { id: 604942707,   tax: 20  },
   'リース資産':       { id: 604942773,   tax: 136 },
@@ -4766,7 +4768,7 @@ const FREEE_ACCOUNT_ITEM_MAP = {
   'その他':           { id: 604942784,   tax: 136 },
 };
 
-const FREEE_SKIP_CATEGORIES = new Set(['給与手当', '役員報酬']);
+const FREEE_SKIP_CATEGORIES = new Set([]); // 給与手当・役員報酬は未払金→銀行口座の振込仕訳として送信
 
 async function loadFreeeToken() {
   try {
