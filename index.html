@@ -499,7 +499,7 @@
     <button class="btn btn-ghost btn-sm" onclick="openPaildModal()" style="color:#1abc9c;border-color:#1abc9c;" onmouseover="this.style.background='#1abc9c';this.style.color='#fff'" onmouseout="this.style.background='';this.style.color='#1abc9c'">💳 Paild取込</button>
     <button class="btn btn-ghost btn-sm" onclick="openFreeeModal()" style="color:#00a968;border-color:#00a968;" onmouseover="this.style.background='#00a968';this.style.color='#fff'" onmouseout="this.style.background='';this.style.color='#00a968'">📤 freee送信</button>
     <button class="btn btn-danger btn-sm" onclick="resetAll()">リセット</button>
-    <span id="verLabel" style="font-size:10px;color:var(--text3);font-family:var(--mono);letter-spacing:0.03em;white-space:nowrap;">Ver:20260518_120724partner</span>
+    <span id="verLabel" style="font-size:10px;color:var(--text3);font-family:var(--mono);letter-spacing:0.03em;white-space:nowrap;">Ver:20260518_121351partner</span>
   </div>
 </div>
 
@@ -1490,12 +1490,13 @@
 
     <!-- プレビュー -->
     <div style="background:var(--bg3); border:1px solid var(--border); border-radius:6px; padding:12px 14px; margin-bottom:14px;">
-      <div style="display:flex; gap:20px; font-size:13px; color:var(--text2);">
+      <div style="display:flex; gap:20px; font-size:13px; color:var(--text2); flex-wrap:wrap;">
         <span>💱 資金移動: <strong style="color:var(--accent);" id="freeePreviewTransfer">-</strong>件</span>
         <span>📝 取引: <strong style="color:var(--accent);" id="freeePreviewDeal">-</strong>件</span>
+        <span>✅ 送信済み: <strong style="color:#2ecc71;" id="freeePreviewSent">-</strong>件</span>
         <span>⏭ スキップ: <strong style="color:var(--text3);" id="freeePreviewSkip">-</strong>件</span>
       </div>
-      <div style="font-size:11px; color:var(--text3); margin-top:5px;">※ 資金移動の入金側はスキップ。給与手当・役員報酬は未払金消込仕訳として送信</div>
+      <div style="font-size:11px; color:var(--text3); margin-top:5px;">※ 送信済みエントリは重複防止のため自動スキップ。資金移動の入金側もスキップ。給与手当・役員報酬は未払金消込仕訳として送信</div>
     </div>
 
     <!-- ログ -->
@@ -1565,6 +1566,7 @@ function rowToEntry(r) {
     category: r.category||'', payMethod: r.pay_method||'',
     isCard: r.is_card||false, isTransfer: r.is_transfer||false,
     sort_order: r.sort_order != null ? r.sort_order : r.id,
+    freeeDealId: r.freee_deal_id||null,
   };
 }
 function showSyncStatus(msg) {
@@ -4945,12 +4947,15 @@ function updateFreeePreview() {
   const to   = document.getElementById('freeeTo').value;
   if (!from || !to) return;
   const targets = entries.filter(e => e.date >= from && e.date <= to && e.status === 'confirmed');
-  document.getElementById('freeePreviewTransfer').textContent =
-    targets.filter(e => e.isTransfer && e.type === 'out').length;
-  document.getElementById('freeePreviewDeal').textContent =
-    targets.filter(e => !e.isTransfer && !FREEE_SKIP_CATEGORIES.has(e.category)).length;
-  document.getElementById('freeePreviewSkip').textContent =
-    targets.filter(e => (e.isTransfer && e.type === 'in') || FREEE_SKIP_CATEGORIES.has(e.category)).length;
+  const newTransfers  = targets.filter(e => e.isTransfer && e.type === 'out' && !e.freeeDealId);
+  const sentTransfers = targets.filter(e => e.isTransfer && e.type === 'out' &&  e.freeeDealId);
+  const newDeals      = targets.filter(e => !e.isTransfer && !FREEE_SKIP_CATEGORIES.has(e.category) && !e.freeeDealId);
+  const sentDeals     = targets.filter(e => !e.isTransfer && !FREEE_SKIP_CATEGORIES.has(e.category) &&  e.freeeDealId);
+  const skipCount     = targets.length - newTransfers.length - sentTransfers.length - newDeals.length - sentDeals.length;
+  document.getElementById('freeePreviewTransfer').textContent = newTransfers.length;
+  document.getElementById('freeePreviewDeal').textContent     = newDeals.length;
+  document.getElementById('freeePreviewSent').textContent     = sentTransfers.length + sentDeals.length;
+  document.getElementById('freeePreviewSkip').textContent     = skipCount;
 }
 
 function freeeLog(msg, type = 'info') {
@@ -4990,11 +4995,12 @@ async function sendToFreee() {
   document.getElementById('freeeLog').innerHTML = '';
 
   const targets   = entries.filter(e => e.date >= from && e.date <= to && e.status === 'confirmed');
-  const transfers = targets.filter(e => e.isTransfer && e.type === 'out');
-  const deals     = targets.filter(e => !e.isTransfer && !FREEE_SKIP_CATEGORIES.has(e.category));
-  const skipCount = targets.length - transfers.length - deals.length;
+  const transfers = targets.filter(e => e.isTransfer && e.type === 'out' && !e.freeeDealId);
+  const deals     = targets.filter(e => !e.isTransfer && !FREEE_SKIP_CATEGORIES.has(e.category) && !e.freeeDealId);
+  const sentCount = targets.filter(e => (e.isTransfer && e.type === 'out' || (!e.isTransfer && !FREEE_SKIP_CATEGORIES.has(e.category))) && e.freeeDealId).length;
+  const skipCount = targets.length - transfers.length - deals.length - sentCount;
 
-  freeeLog(`📋 対象: 資金移動 ${transfers.length}件 / 取引 ${deals.length}件 / スキップ ${skipCount}件`);
+  freeeLog(`📋 対象: 資金移動 ${transfers.length}件 / 取引 ${deals.length}件 / 送信済みスキップ ${sentCount}件 / スキップ ${skipCount}件`);
   let ok = 0, err = 0;
 
   // ── 取引先マップを取得（name → id） ──
@@ -5040,7 +5046,7 @@ async function sendToFreee() {
     const toW    = toAcct ? FREEE_WALLETABLE_MAP[toAcct.id] : null;
     if (!fromW || !toW) { freeeLog(`⏭ 口座マップなしスキップ: ${t.desc}`, 'skip'); continue; }
     try {
-      await freeeApiCall(token, 'POST', '/api/1/transfers', {
+      const tfResult = await freeeApiCall(token, 'POST', '/api/1/transfers', {
         company_id: FREEE_COMPANY_ID,
         amount: t.amount,
         from_walletable_id: fromW.id,
@@ -5050,6 +5056,12 @@ async function sendToFreee() {
         date: t.date,
         description: `資金移動 ${m[1]}→${m[2]}`,
       });
+      const tfFreeeId = String(tfResult.transfer?.id || tfResult.id || '');
+      if (tfFreeeId) {
+        await sbFetch(`/rest/v1/entries?id=eq.${t.id}`, 'PATCH', { freee_deal_id: tfFreeeId });
+        const e = entries.find(x => x.id === t.id);
+        if (e) e.freeeDealId = tfFreeeId;
+      }
       freeeLog(`✅ 資金移動: ${t.date} ${m[1]}→${m[2]} ¥${t.amount.toLocaleString()}`, 'ok');
       ok++;
     } catch(e) {
@@ -5090,7 +5102,13 @@ async function sendToFreee() {
           date: d.date,
         }];
       }
-      await freeeApiCall(token, 'POST', '/api/1/deals', dealBody);
+      const dealResult = await freeeApiCall(token, 'POST', '/api/1/deals', dealBody);
+      const dealFreeeId = String(dealResult.deal?.id || dealResult.id || '');
+      if (dealFreeeId) {
+        await sbFetch(`/rest/v1/entries?id=eq.${d.id}`, 'PATCH', { freee_deal_id: dealFreeeId });
+        const e = entries.find(x => x.id === d.id);
+        if (e) e.freeeDealId = dealFreeeId;
+      }
       const label = isAmazon ? '未払金' : (isIncome ? '入金' : '出金');
       freeeLog(`✅ ${label}: ${d.date} [${d.category}] ${d.partner||''} ¥${d.amount.toLocaleString()}`, 'ok');
       ok++;
