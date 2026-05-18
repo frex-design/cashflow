@@ -499,7 +499,7 @@
     <button class="btn btn-ghost btn-sm" onclick="openPaildModal()" style="color:#1abc9c;border-color:#1abc9c;" onmouseover="this.style.background='#1abc9c';this.style.color='#fff'" onmouseout="this.style.background='';this.style.color='#1abc9c'">💳 Paild取込</button>
     <button class="btn btn-ghost btn-sm" onclick="openFreeeModal()" style="color:#00a968;border-color:#00a968;" onmouseover="this.style.background='#00a968';this.style.color='#fff'" onmouseout="this.style.background='';this.style.color='#00a968'">📤 freee送信</button>
     <button class="btn btn-danger btn-sm" onclick="resetAll()">リセット</button>
-    <span id="verLabel" style="font-size:10px;color:var(--text3);font-family:var(--mono);letter-spacing:0.03em;white-space:nowrap;">Ver:20260518_122827partner</span>
+    <span id="verLabel" style="font-size:10px;color:var(--text3);font-family:var(--mono);letter-spacing:0.03em;white-space:nowrap;">Ver:20260518_125250partner</span>
   </div>
 </div>
 
@@ -1399,8 +1399,26 @@
 
     <!-- 説明 -->
     <div style="background:rgba(26,188,156,0.08); border:1px solid rgba(26,188,156,0.3); border-radius:6px; padding:10px 14px; margin-bottom:16px; font-size:12px; color:var(--text2); line-height:1.7;">
-      freeeの未登録Paild明細を取込みます。取込済みのデータは自動でスキップします。<br>
-      科目は取込後に手動で設定してください。ステータスは「確定」で登録されます。
+      freeeの未登録Paild明細を取込みます。取込済みのデータは自動でスキップします。ステータスは「確定」で登録されます。
+    </div>
+
+    <!-- デフォルト科目 -->
+    <div style="margin-bottom:14px;">
+      <div style="font-size:12px; font-weight:600; color:var(--text2); margin-bottom:6px;">デフォルト科目（取込時に自動セット）</div>
+      <select id="paildDefaultCategory" style="width:100%; padding:7px 10px; border:1px solid var(--border); border-radius:5px; background:var(--bg2); color:var(--text); font-size:13px; font-family:var(--sans);">
+        <option value="">― 科目を選択 ―</option>
+        <option value="消耗品費">消耗品費</option>
+        <option value="旅費交通費">旅費交通費</option>
+        <option value="接待交際費">接待交際費</option>
+        <option value="福利厚生費">福利厚生費</option>
+        <option value="会議費">会議費</option>
+        <option value="通信費">通信費</option>
+        <option value="広告宣伝費">広告宣伝費</option>
+        <option value="車両費">車両費</option>
+        <option value="地代家賃">地代家賃</option>
+        <option value="水道光熱費">水道光熱費</option>
+        <option value="その他">その他</option>
+      </select>
     </div>
 
     <!-- 期間指定 -->
@@ -5713,6 +5731,7 @@ async function importPaildEntries() {
 
   try {
     // エントリ登録
+    const defaultCategory = document.getElementById('paildDefaultCategory')?.value || '';
     const newEntries = newItems.map(t => ({
       id: nextId++,
       date: t.date,
@@ -5722,7 +5741,7 @@ async function importPaildEntries() {
       amount: t.amount,
       partner: t.storeName,
       desc: t.storeName,
-      category: '',
+      category: defaultCategory,
       isCard: false,
       isTransfer: false,
       payMethod: '',
