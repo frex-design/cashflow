@@ -499,7 +499,7 @@
     <button class="btn btn-ghost btn-sm" onclick="openPaildModal()" style="color:#1abc9c;border-color:#1abc9c;" onmouseover="this.style.background='#1abc9c';this.style.color='#fff'" onmouseout="this.style.background='';this.style.color='#1abc9c'">💳 Paild取込</button>
     <button class="btn btn-ghost btn-sm" onclick="openFreeeModal()" style="color:#00a968;border-color:#00a968;" onmouseover="this.style.background='#00a968';this.style.color='#fff'" onmouseout="this.style.background='';this.style.color='#00a968'">📤 freee送信</button>
     <button class="btn btn-danger btn-sm" onclick="resetAll()">リセット</button>
-    <span id="verLabel" style="font-size:10px;color:var(--text3);font-family:var(--mono);letter-spacing:0.03em;white-space:nowrap;">Ver:20260518_121351partner</span>
+    <span id="verLabel" style="font-size:10px;color:var(--text3);font-family:var(--mono);letter-spacing:0.03em;white-space:nowrap;">Ver:20260518_122827partner</span>
   </div>
 </div>
 
@@ -1400,11 +1400,40 @@
     <!-- 説明 -->
     <div style="background:rgba(26,188,156,0.08); border:1px solid rgba(26,188,156,0.3); border-radius:6px; padding:10px 14px; margin-bottom:16px; font-size:12px; color:var(--text2); line-height:1.7;">
       freeeの未登録Paild明細を取込みます。取込済みのデータは自動でスキップします。<br>
-      科目は取込後に手動で設定してください。ステータスは「予定」で登録されます。
+      科目は取込後に手動で設定してください。ステータスは「確定」で登録されます。
+    </div>
+
+    <!-- 期間指定 -->
+    <div style="margin-bottom:14px;">
+      <div style="font-size:12px; font-weight:600; color:var(--text2); margin-bottom:6px;">取込期間</div>
+      <div style="display:flex; align-items:center; gap:8px;">
+        <div style="flex:1; position:relative;">
+          <div style="display:flex; align-items:center; gap:0; border:1px solid var(--border); border-radius:5px; overflow:hidden; background:var(--bg2);">
+            <button class="filter-nav-btn" onclick="event.stopPropagation(); shiftPaildCalDate('paildFrom',-1)">&#8249;</button>
+            <div id="paildFromDisplay" onclick="event.stopPropagation(); toggleCustomCal('paildFrom')"
+              style="flex:1; text-align:center; padding:7px 4px; font-size:13px; color:var(--text); cursor:pointer; user-select:none; white-space:nowrap;"></div>
+            <button class="filter-nav-btn" onclick="event.stopPropagation(); shiftPaildCalDate('paildFrom',1)">&#8250;</button>
+          </div>
+          <input type="hidden" id="paildFrom">
+          <div id="customCal_paildFrom" class="custom-cal" style="display:none; position:absolute; top:calc(100% + 4px); left:0; z-index:600;"></div>
+        </div>
+        <span style="color:var(--text3); flex-shrink:0;">〜</span>
+        <div style="flex:1; position:relative;">
+          <div style="display:flex; align-items:center; gap:0; border:1px solid var(--border); border-radius:5px; overflow:hidden; background:var(--bg2);">
+            <button class="filter-nav-btn" onclick="event.stopPropagation(); shiftPaildCalDate('paildTo',-1)">&#8249;</button>
+            <div id="paildToDisplay" onclick="event.stopPropagation(); toggleCustomCal('paildTo')"
+              style="flex:1; text-align:center; padding:7px 4px; font-size:13px; color:var(--text); cursor:pointer; user-select:none; white-space:nowrap;"></div>
+            <button class="filter-nav-btn" onclick="event.stopPropagation(); shiftPaildCalDate('paildTo',1)">&#8250;</button>
+          </div>
+          <input type="hidden" id="paildTo">
+          <div id="customCal_paildTo" class="custom-cal" style="display:none; position:absolute; top:calc(100% + 4px); right:0; left:auto; z-index:600;"></div>
+        </div>
+        <button class="btn btn-ghost btn-sm" onclick="fetchPaildTxns()" style="white-space:nowrap; font-size:11px;">🔄 再取得</button>
+      </div>
     </div>
 
     <!-- ステータス -->
-    <div id="paildStatus" style="font-size:12px; color:var(--text3); margin-bottom:12px;">freeeから取得中…</div>
+    <div id="paildStatus" style="font-size:12px; color:var(--text3); margin-bottom:12px;"></div>
 
     <!-- プレビューカウント -->
     <div id="paildCountBar" style="display:none; background:var(--bg3); border:1px solid var(--border); border-radius:6px; padding:10px 14px; margin-bottom:12px;">
@@ -2641,6 +2670,8 @@ const CAL_KEY_MAP = {
   'modal':     'em_date',
   'freeeFrom': 'freeeFrom',
   'freeeTo':   'freeeTo',
+  'paildFrom': 'paildFrom',
+  'paildTo':   'paildTo',
 };
 
 function toggleCustomCal(key) {
@@ -2723,6 +2754,8 @@ function selectCustomDate(key, dateStr) {
   } else if (key === 'freeeFrom' || key === 'freeeTo') {
     updateFreeeCalDisplay(key);
     updateFreeePreview();
+  } else if (key === 'paildFrom' || key === 'paildTo') {
+    updatePaildCalDisplay(key);
   } else {
     updateDateDisplay(key);
   }
@@ -2738,6 +2771,8 @@ document.addEventListener('click', function(e) {
                  : key === 'modal' ? 'em_dateDisplay'
                  : key === 'freeeFrom' ? 'freeeFromDisplay'
                  : key === 'freeeTo'   ? 'freeeToDisplay'
+                 : key === 'paildFrom' ? 'paildFromDisplay'
+                 : key === 'paildTo'   ? 'paildToDisplay'
                  : null;
     const disp = dispId ? document.getElementById(dispId) : null;
     if (disp && !cal.contains(e.target) && e.target !== disp) cal.style.display = 'none';
@@ -2769,6 +2804,32 @@ function shiftFreeeCalDate(key, delta) {
   document.getElementById(id).value = newVal;
   updateFreeeCalDisplay(key);
   updateFreeePreview();
+}
+
+function updatePaildCalDisplay(key) {
+  const val = document.getElementById(CAL_KEY_MAP[key]).value;
+  const dispId = key === 'paildFrom' ? 'paildFromDisplay' : 'paildToDisplay';
+  const el = document.getElementById(dispId);
+  if (!el) return;
+  if (val) {
+    const [y, m, d] = val.split('-').map(Number);
+    el.textContent = `${y}/${String(m).padStart(2,'0')}/${String(d).padStart(2,'0')}`;
+    el.style.color = 'var(--text)';
+  } else {
+    el.textContent = '日付を選択';
+    el.style.color = 'var(--text3)';
+  }
+}
+
+function shiftPaildCalDate(key, delta) {
+  const id = CAL_KEY_MAP[key];
+  const val = document.getElementById(id).value;
+  if (!val) return;
+  const d = new Date(val);
+  d.setDate(d.getDate() + delta);
+  const newVal = d.toISOString().slice(0, 10);
+  document.getElementById(id).value = newVal;
+  updatePaildCalDisplay(key);
 }
 
 // ===== DATE SHIFT FOR FORMS =====
@@ -5524,6 +5585,20 @@ async function savePaildImportedIds(idSet) {
 }
 
 function openPaildModal() {
+  // 当月の1日〜末日を初期値として設定
+  const today = new Date();
+  const y = today.getFullYear(), m = today.getMonth() + 1;
+  const firstDay = formatDateVal(y, m, 1);
+  const lastDay  = formatDateVal(y, m, new Date(y, m, 0).getDate());
+  if (!document.getElementById('paildFrom').value) {
+    document.getElementById('paildFrom').value = firstDay;
+    updatePaildCalDisplay('paildFrom');
+  }
+  if (!document.getElementById('paildTo').value) {
+    document.getElementById('paildTo').value = lastDay;
+    updatePaildCalDisplay('paildTo');
+  }
+
   document.getElementById('paildModal').style.display = 'flex';
   paildFetchedTxns = [];
   document.getElementById('paildStatus').textContent = 'freeeから取得中…';
@@ -5545,8 +5620,11 @@ async function fetchPaildTxns() {
     const token = await getValidFreeeToken();
 
     // freeeからPaild明細を取得
+    const fromDate = document.getElementById('paildFrom').value;
+    const toDate   = document.getElementById('paildTo').value;
     statusEl.textContent = 'freeeから明細を取得中…';
-    const url = `${FREEE_API_BASE}/api/1/wallet_txns?company_id=${FREEE_COMPANY_ID}&walletable_id=${PAILD_WALLETABLE_ID}&walletable_type=wallet&limit=100`;
+    const dateParams = fromDate && toDate ? `&start_date=${fromDate}&end_date=${toDate}` : '';
+    const url = `${FREEE_API_BASE}/api/1/wallet_txns?company_id=${FREEE_COMPANY_ID}&walletable_id=${PAILD_WALLETABLE_ID}&walletable_type=wallet&limit=100${dateParams}`;
     const res = await fetch(url, {
       headers: {
         'Authorization': `Bearer ${token}`,
