@@ -499,7 +499,7 @@
     <button class="btn btn-ghost btn-sm" onclick="openPaildModal()" style="color:#1abc9c;border-color:#1abc9c;" onmouseover="this.style.background='#1abc9c';this.style.color='#fff'" onmouseout="this.style.background='';this.style.color='#1abc9c'">💳 Paild取込</button>
     <button class="btn btn-ghost btn-sm" onclick="openFreeeModal()" style="color:#00a968;border-color:#00a968;" onmouseover="this.style.background='#00a968';this.style.color='#fff'" onmouseout="this.style.background='';this.style.color='#00a968'">📤 freee送信</button>
     <button class="btn btn-danger btn-sm" onclick="resetAll()">リセット</button>
-    <span id="verLabel" style="font-size:10px;color:var(--text3);font-family:var(--mono);letter-spacing:0.03em;white-space:nowrap;">Ver:20260525_161500partner</span>
+    <span id="verLabel" style="font-size:10px;color:var(--text3);font-family:var(--mono);letter-spacing:0.03em;white-space:nowrap;">Ver:20260525_165027partner</span>
   </div>
 </div>
 
@@ -4840,7 +4840,7 @@ const FREEE_ACCOUNT_ITEM_MAP = {
   '未払金':           { id: 604942698,   tax: 20  },
   '給与手当':         { id: 604942698,   tax: 20  },  // 手取り振込仕訳（未払金→銀行口座）
   '役員報酬':         { id: 604942698,   tax: 20  },  // 手取り振込仕訳（未払金→銀行口座）
-  '厚生年金/健康保険': { id: 604942750,   tax: 20  },
+  '厚生年金/健康保険': { id: 604942698,   tax: 20  },  // 未払金消込仕訳（freee HR連動）
   '所得税/住民税':    { id: 604942707,   tax: 20  },
   'リース資産':       { id: 604942773,   tax: 136 },
   '借入金(短期)':     { id: 604942697,   tax: 20  },
