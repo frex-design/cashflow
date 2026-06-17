@@ -499,7 +499,7 @@
     <button class="btn btn-ghost btn-sm" onclick="openPaildModal()" style="color:#1abc9c;border-color:#1abc9c;" onmouseover="this.style.background='#1abc9c';this.style.color='#fff'" onmouseout="this.style.background='';this.style.color='#1abc9c'">💳 Paild取込</button>
     <button class="btn btn-ghost btn-sm" onclick="openFreeeModal()" style="color:#00a968;border-color:#00a968;" onmouseover="this.style.background='#00a968';this.style.color='#fff'" onmouseout="this.style.background='';this.style.color='#00a968'">📤 freee送信</button>
     <button class="btn btn-danger btn-sm" onclick="resetAll()">リセット</button>
-    <span id="verLabel" style="font-size:10px;color:var(--text3);font-family:var(--mono);letter-spacing:0.03em;white-space:nowrap;">Ver:20260615_132801partner</span>
+    <span id="verLabel" style="font-size:10px;color:var(--text3);font-family:var(--mono);letter-spacing:0.03em;white-space:nowrap;">Ver:20260617_153522partner</span>
   </div>
 </div>
 
@@ -5157,9 +5157,9 @@ async function sendToFreee() {
   for (const d of deals) {
     const acctItem   = FREEE_ACCOUNT_ITEM_MAP[d.category];
     const walletable = FREEE_WALLETABLE_MAP[d.account];
-    const isAmazon   = d.account === 'amazon'; // アマゾン口座：payments省略→freeeで未払金として自動処理
-    if (!acctItem)              { freeeLog(`⏭ 科目マップなしスキップ: ${d.date} [${d.category}]`, 'skip'); continue; }
-    if (!walletable && !isAmazon) { freeeLog(`⏭ 口座マップなしスキップ: ${d.date} [${d.account}]`,   'skip'); continue; }
+    const isCardAccount = ACCOUNTS.find(a => a.id === d.account)?.isCard || false; // カード口座（amazon/VISA/JCB）：payments省略→freeeで未払金として自動処理
+    if (!acctItem)                   { freeeLog(`⏭ 科目マップなしスキップ: ${d.date} [${d.category}]`, 'skip'); continue; }
+    if (!walletable && !isCardAccount) { freeeLog(`⏭ 口座マップなしスキップ: ${d.date} [${d.account}]`,   'skip'); continue; }
     const isIncome = d.type === 'in';
     const partnerId = await getOrCreatePartnerId(d.partner);
     try {
@@ -5175,9 +5175,9 @@ async function sendToFreee() {
           description: d.desc || '',
         }],
       };
-      // アマゾン口座: paymentsなし → freeeで「費用科目 / 未払金」仕訳として処理
+      // カード口座（amazon/VISA V/VISA P/JCB）: paymentsなし → freeeで「費用科目 / 未払金」仕訳として処理
       // 通常口座: walletableから支払い
-      if (!isAmazon) {
+      if (!isCardAccount) {
         dealBody.payments = [{
           amount: d.amount,
           from_walletable_type: walletable.type,
@@ -5192,7 +5192,7 @@ async function sendToFreee() {
         const e = entries.find(x => x.id === d.id);
         if (e) e.freeeDealId = dealFreeeId;
       }
-      const label = isAmazon ? '未払金' : (isIncome ? '入金' : '出金');
+      const label = isCardAccount ? '未払金' : (isIncome ? '入金' : '出金');
       freeeLog(`✅ ${label}: ${d.date} [${d.category}] ${d.partner||''} ¥${d.amount.toLocaleString()}`, 'ok');
       ok++;
     } catch(e) {
