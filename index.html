@@ -501,7 +501,7 @@
     <button class="btn btn-ghost btn-sm" onclick="openPaildModal()" style="color:#1abc9c;border-color:#1abc9c;" onmouseover="this.style.background='#1abc9c';this.style.color='#fff'" onmouseout="this.style.background='';this.style.color='#1abc9c'">💳 Paild取込</button>
     <button class="btn btn-ghost btn-sm" onclick="openFreeeModal()" style="color:#00a968;border-color:#00a968;" onmouseover="this.style.background='#00a968';this.style.color='#fff'" onmouseout="this.style.background='';this.style.color='#00a968'">📤 freee送信</button>
     <button class="btn btn-danger btn-sm" onclick="resetAll()">リセット</button>
-    <span id="verLabel" style="font-size:10px;color:var(--text3);font-family:var(--mono);letter-spacing:0.03em;white-space:nowrap;">Ver:20260626_115704partner</span>
+    <span id="verLabel" style="font-size:10px;color:var(--text3);font-family:var(--mono);letter-spacing:0.03em;white-space:nowrap;">Ver:20260626_122034partner</span>
   </div>
 </div>
 
@@ -1294,7 +1294,7 @@
       <button onclick="closeExcelExport()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--text3);">✕</button>
     </div>
     <div style="font-size:12px; color:var(--text3); margin-bottom:16px; line-height:1.6;">
-      出金・入金を口座ごとの列に展開した一覧をExcel（.xlsx）で出力します。<br>列：日付・科目・取引先＋出金11口座＋入金11口座
+      出金・入金を口座ごとの列に展開した一覧をExcel（.xlsx）で出力します。<br>列：日付・科目・取引先＋口座残高3列（秋田/信金/GMO・累計）＋出金11口座＋入金7口座
     </div>
     <!-- 期間指定（カスタムカレンダー） -->
     <div style="margin-bottom:16px;">
@@ -4564,9 +4564,23 @@ async function doExportExcel() {
   const filtered = getFilteredEntriesForExcel().sort((a,b)=>a.date.localeCompare(b.date));
   if (filtered.length === 0) { alert('出力対象のデータがありません。'); return; }
 
-  const N = ACCOUNTS.length;            // 11口座
   const COMMON = 3;                     // 日付・科目・取引先
-  const totalCols = COMMON + N * 2;     // 3 + 11 + 11 = 25
+  // 口座残高（累計）対象：秋田銀行・信用金庫・GMO
+  const BAL_IDS = ['akita', 'shinkin', 'gmo'];
+  const BAL_ACCOUNTS = BAL_IDS.map(id => ACCOUNTS.find(a => a.id === id)).filter(Boolean);
+  const BAL = BAL_ACCOUNTS.length;      // 3
+  // 出金：全11口座
+  const OUT_ACCOUNTS = ACCOUNTS;
+  const OUT = OUT_ACCOUNTS.length;      // 11
+  // 入金：カード系（アマゾン・VISA-V・VISA-P・JCB）は入金なしのため除外
+  const NO_IN_IDS = ['amazon', 'card_visa', 'card_visa_p', 'card_jib'];
+  const IN_ACCOUNTS = ACCOUNTS.filter(a => !NO_IN_IDS.includes(a.id));
+  const IN = IN_ACCOUNTS.length;        // 7
+
+  const balStart = COMMON + 1;          // 4
+  const outStart = COMMON + BAL + 1;    // 7
+  const inStart  = COMMON + BAL + OUT + 1; // 18
+  const totalCols = COMMON + BAL + OUT + IN; // 3+3+11+7 = 24
 
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet('入出金一覧');
@@ -4575,27 +4589,34 @@ async function doExportExcel() {
   ws.getColumn(1).width = 12; // 日付
   ws.getColumn(2).width = 14; // 科目
   ws.getColumn(3).width = 20; // 取引先
-  for (let i = COMMON + 1; i <= totalCols; i++) ws.getColumn(i).width = 13;
+  for (let i = balStart; i <= totalCols; i++) ws.getColumn(i).width = 13;
 
   const thin = { style: 'thin', color: { argb: 'FFBFBFBF' } };
   const border = { top: thin, left: thin, bottom: thin, right: thin };
 
-  // --- 1行目：グループ見出し（出金 / 入金）---
+  // --- 1行目：グループ見出し（口座残高 / 出金 / 入金）---
   const r1 = ws.getRow(1);
-  ws.mergeCells(1, 1, 1, COMMON);                          // A1:C1
-  ws.mergeCells(1, COMMON + 1, 1, COMMON + N);             // 出金
-  ws.mergeCells(1, COMMON + N + 1, 1, COMMON + N * 2);     // 入金
-  const cOut = r1.getCell(COMMON + 1);
+  ws.mergeCells(1, 1, 1, COMMON);                       // A1:C1
+  ws.mergeCells(1, balStart, 1, balStart + BAL - 1);    // 口座残高（累計）
+  ws.mergeCells(1, outStart, 1, outStart + OUT - 1);    // 出金
+  ws.mergeCells(1, inStart, 1, inStart + IN - 1);       // 入金
+  const cBal = r1.getCell(balStart);
+  cBal.value = '口座残高（累計）';
+  cBal.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFDCE6F1' } };
+  const cOut = r1.getCell(outStart);
   cOut.value = '出金';
   cOut.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8D7DA' } };
-  const cIn = r1.getCell(COMMON + N + 1);
+  const cIn = r1.getCell(inStart);
   cIn.value = '入金';
   cIn.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD4EDDA' } };
-  [cOut, cIn].forEach(c => { c.font = { bold: true, size: 12 }; c.alignment = { horizontal: 'center', vertical: 'middle' }; });
+  [cBal, cOut, cIn].forEach(c => { c.font = { bold: true, size: 12 }; c.alignment = { horizontal: 'center', vertical: 'middle' }; });
 
   // --- 2行目：列見出し ---
   const r2 = ws.getRow(2);
-  const headers = ['日付', '科目', '取引先', ...ACCOUNTS.map(a=>a.name), ...ACCOUNTS.map(a=>a.name)];
+  const headers = ['日付', '科目', '取引先',
+    ...BAL_ACCOUNTS.map(a=>a.name),
+    ...OUT_ACCOUNTS.map(a=>a.name),
+    ...IN_ACCOUNTS.map(a=>a.name)];
   headers.forEach((h, i) => { r2.getCell(i+1).value = h; });
   r2.eachCell({ includeEmpty: false }, c => {
     c.font = { bold: true, size: 11 };
@@ -4614,14 +4635,19 @@ async function doExportExcel() {
     row.getCell(1).value = e.date;
     row.getCell(2).value = e.category || '';
     row.getCell(3).value = e.partner || '';
-    const acctIdx = ACCOUNTS.findIndex(a => a.id === e.account);
-    if (acctIdx >= 0) {
-      const col = (e.type === 'in')
-        ? COMMON + N + 1 + acctIdx   // 入金グループ
-        : COMMON + 1 + acctIdx;      // 出金グループ
-      const cell = row.getCell(col);
-      cell.value = e.amount;
+    // 口座残高（累計）：その行の日付時点・確定ベース（システム共通のgetBalanceAtを流用）
+    BAL_ACCOUNTS.forEach((a, i) => {
+      const cell = row.getCell(balStart + i);
+      cell.value = getBalanceAt(a.id, e.date);
       cell.numFmt = '#,##0';
+    });
+    // 出金 / 入金 の交差セルに金額
+    if (e.type === 'in') {
+      const inIdx = IN_ACCOUNTS.findIndex(a => a.id === e.account);
+      if (inIdx >= 0) { const c = row.getCell(inStart + inIdx); c.value = e.amount; c.numFmt = '#,##0'; }
+    } else {
+      const outIdx = OUT_ACCOUNTS.findIndex(a => a.id === e.account);
+      if (outIdx >= 0) { const c = row.getCell(outStart + outIdx); c.value = e.amount; c.numFmt = '#,##0'; }
     }
     for (let c = 1; c <= totalCols; c++) row.getCell(c).border = border;
   });
