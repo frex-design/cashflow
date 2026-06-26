@@ -7,6 +7,7 @@
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%234f9cf9'/><text x='16' y='24' font-family='Georgia,serif' font-size='22' font-weight='700' fill='white' text-anchor='middle'>F</text></svg>">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&family=JetBrains+Mono:wght@400;600&display=swap');
 
@@ -495,11 +496,12 @@
     <div class="today-badge" id="todayLabel"></div>
     <button class="btn btn-ghost btn-sm" onclick="openCsvImport()">CSV取込</button>
     <button class="btn btn-ghost btn-sm" onclick="openCsvExport()">CSV出力</button>
+    <button class="btn btn-ghost btn-sm" onclick="openExcelExport()" style="color:#217346;border-color:#217346;" onmouseover="this.style.background='#217346';this.style.color='#fff'" onmouseout="this.style.background='';this.style.color='#217346'">📊 Excel出力</button>
     <button class="btn btn-ghost btn-sm" onclick="openVisaImportModal()" style="color:#0284c7;border-color:#0284c7;" onmouseover="this.style.background='#0284c7';this.style.color='#fff'" onmouseout="this.style.background='';this.style.color='#0284c7'">💳 VISA/JCB取込</button>
     <button class="btn btn-ghost btn-sm" onclick="openPaildModal()" style="color:#1abc9c;border-color:#1abc9c;" onmouseover="this.style.background='#1abc9c';this.style.color='#fff'" onmouseout="this.style.background='';this.style.color='#1abc9c'">💳 Paild取込</button>
     <button class="btn btn-ghost btn-sm" onclick="openFreeeModal()" style="color:#00a968;border-color:#00a968;" onmouseover="this.style.background='#00a968';this.style.color='#fff'" onmouseout="this.style.background='';this.style.color='#00a968'">📤 freee送信</button>
     <button class="btn btn-danger btn-sm" onclick="resetAll()">リセット</button>
-    <span id="verLabel" style="font-size:10px;color:var(--text3);font-family:var(--mono);letter-spacing:0.03em;white-space:nowrap;">Ver:20260619_120647partner</span>
+    <span id="verLabel" style="font-size:10px;color:var(--text3);font-family:var(--mono);letter-spacing:0.03em;white-space:nowrap;">Ver:20260626_115107partner</span>
   </div>
 </div>
 
@@ -1280,6 +1282,36 @@
     <div style="display:flex; justify-content:flex-end; gap:8px;">
       <button class="btn btn-ghost" onclick="closeCsvExport()">キャンセル</button>
       <button class="btn btn-primary" onclick="doExportCSV()">📥 ダウンロード</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== EXCEL EXPORT MODAL (口座横展開・期間指定) ===== -->
+<div id="excelExportModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.35); z-index:200; align-items:center; justify-content:center;">
+  <div style="background:#fff; border-radius:12px; padding:28px; width:480px; max-width:95vw; box-shadow:0 8px 40px rgba(0,0,0,0.18);">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:18px;">
+      <div style="font-size:15px; font-weight:600; color:#217346;">📊 Excel出力（口座別・横展開）</div>
+      <button onclick="closeExcelExport()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--text3);">✕</button>
+    </div>
+    <div style="font-size:12px; color:var(--text3); margin-bottom:16px; line-height:1.6;">
+      出金・入金を口座ごとの列に展開した一覧をExcel（.xlsx）で出力します。<br>列：日付・科目・取引先＋出金11口座＋入金11口座
+    </div>
+    <!-- 期間指定 -->
+    <div style="margin-bottom:16px;">
+      <div style="font-size:12px; font-weight:600; color:var(--text2); margin-bottom:8px;">出力期間（指定した日付の範囲）</div>
+      <div style="display:flex; align-items:center; gap:8px;">
+        <input type="date" id="excelExportFrom" onchange="updateExcelExportCount()" style="flex:1;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--sans);">
+        <span style="color:var(--text3);">〜</span>
+        <input type="date" id="excelExportTo" onchange="updateExcelExportCount()" style="flex:1;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--sans);">
+      </div>
+    </div>
+    <!-- 件数プレビュー -->
+    <div id="excelExportPreviewInfo" style="background:var(--bg3); border:1px solid var(--border); border-radius:6px; padding:10px 14px; margin-bottom:16px; font-size:13px; color:var(--text2);">
+      期間を指定してください
+    </div>
+    <div style="display:flex; justify-content:flex-end; gap:8px;">
+      <button class="btn btn-ghost" onclick="closeExcelExport()">キャンセル</button>
+      <button class="btn btn-primary" onclick="doExportExcel()" style="background:#217346;border-color:#217346;">📥 Excelダウンロード</button>
     </div>
   </div>
 </div>
@@ -4423,6 +4455,135 @@ function doExportCSV() {
 
 // 旧関数（後方互換）
 function exportCSV() { openCsvExport(); }
+
+// ===== EXCEL EXPORT（口座横展開・期間指定）=====
+function openExcelExport() {
+  // 初期値：データの最小日〜最大日（無ければ当月）
+  const fromEl = document.getElementById('excelExportFrom');
+  const toEl   = document.getElementById('excelExportTo');
+  if (!fromEl.value || !toEl.value) {
+    const dates = entries.map(e => e.date).sort();
+    if (dates.length) {
+      fromEl.value = dates[0];
+      toEl.value = dates[dates.length - 1];
+    } else {
+      const t = getTodayStr();
+      fromEl.value = t.slice(0,8) + '01';
+      toEl.value = t;
+    }
+  }
+  updateExcelExportCount();
+  document.getElementById('excelExportModal').style.display = 'flex';
+}
+function closeExcelExport() {
+  document.getElementById('excelExportModal').style.display = 'none';
+}
+function getExcelExportRange() {
+  const from = document.getElementById('excelExportFrom').value;
+  const to   = document.getElementById('excelExportTo').value;
+  return { from, to };
+}
+function getFilteredEntriesForExcel() {
+  const { from, to } = getExcelExportRange();
+  if (!from || !to) return [];
+  const lo = from <= to ? from : to;
+  const hi = from <= to ? to : from;
+  return entries.filter(e => e.date >= lo && e.date <= hi);
+}
+function updateExcelExportCount() {
+  const { from, to } = getExcelExportRange();
+  const infoEl = document.getElementById('excelExportPreviewInfo');
+  if (!infoEl) return;
+  if (!from || !to) { infoEl.textContent = '期間を指定してください'; return; }
+  const lo = from <= to ? from : to;
+  const hi = from <= to ? to : from;
+  const cnt = getFilteredEntriesForExcel().length;
+  infoEl.innerHTML = `${lo} 〜 ${hi}　<span style="font-weight:600;color:#217346;">${cnt}</span> 件を出力します`;
+}
+async function doExportExcel() {
+  if (typeof ExcelJS === 'undefined') { alert('Excelライブラリの読込に失敗しました。ページを再読込してください（⌘R）。'); return; }
+  const { from, to } = getExcelExportRange();
+  if (!from || !to) { alert('期間を指定してください。'); return; }
+  const lo = from <= to ? from : to;
+  const hi = from <= to ? to : from;
+  const filtered = getFilteredEntriesForExcel().sort((a,b)=>a.date.localeCompare(b.date));
+  if (filtered.length === 0) { alert('出力対象のデータがありません。'); return; }
+
+  const N = ACCOUNTS.length;            // 11口座
+  const COMMON = 3;                     // 日付・科目・取引先
+  const totalCols = COMMON + N * 2;     // 3 + 11 + 11 = 25
+
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet('入出金一覧');
+
+  // 列幅
+  ws.getColumn(1).width = 12; // 日付
+  ws.getColumn(2).width = 14; // 科目
+  ws.getColumn(3).width = 20; // 取引先
+  for (let i = COMMON + 1; i <= totalCols; i++) ws.getColumn(i).width = 13;
+
+  const thin = { style: 'thin', color: { argb: 'FFBFBFBF' } };
+  const border = { top: thin, left: thin, bottom: thin, right: thin };
+
+  // --- 1行目：グループ見出し（出金 / 入金）---
+  const r1 = ws.getRow(1);
+  ws.mergeCells(1, 1, 1, COMMON);                          // A1:C1
+  ws.mergeCells(1, COMMON + 1, 1, COMMON + N);             // 出金
+  ws.mergeCells(1, COMMON + N + 1, 1, COMMON + N * 2);     // 入金
+  const cOut = r1.getCell(COMMON + 1);
+  cOut.value = '出金';
+  cOut.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8D7DA' } };
+  const cIn = r1.getCell(COMMON + N + 1);
+  cIn.value = '入金';
+  cIn.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD4EDDA' } };
+  [cOut, cIn].forEach(c => { c.font = { bold: true, size: 12 }; c.alignment = { horizontal: 'center', vertical: 'middle' }; });
+
+  // --- 2行目：列見出し ---
+  const r2 = ws.getRow(2);
+  const headers = ['日付', '科目', '取引先', ...ACCOUNTS.map(a=>a.name), ...ACCOUNTS.map(a=>a.name)];
+  headers.forEach((h, i) => { r2.getCell(i+1).value = h; });
+  r2.eachCell({ includeEmpty: false }, c => {
+    c.font = { bold: true, size: 11 };
+    c.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+    c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEFEFEF' } };
+  });
+
+  // 1〜2行目の罫線（全列）
+  for (let r = 1; r <= 2; r++) {
+    for (let c = 1; c <= totalCols; c++) ws.getRow(r).getCell(c).border = border;
+  }
+
+  // --- データ行 ---
+  filtered.forEach((e, idx) => {
+    const row = ws.getRow(3 + idx);
+    row.getCell(1).value = e.date;
+    row.getCell(2).value = e.category || '';
+    row.getCell(3).value = e.partner || '';
+    const acctIdx = ACCOUNTS.findIndex(a => a.id === e.account);
+    if (acctIdx >= 0) {
+      const col = (e.type === 'in')
+        ? COMMON + N + 1 + acctIdx   // 入金グループ
+        : COMMON + 1 + acctIdx;      // 出金グループ
+      const cell = row.getCell(col);
+      cell.value = e.amount;
+      cell.numFmt = '#,##0';
+    }
+    for (let c = 1; c <= totalCols; c++) row.getCell(c).border = border;
+  });
+
+  // 1行目固定
+  ws.views = [{ state: 'frozen', ySplit: 2 }];
+
+  const buf = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `キャッシュフロー_口座別_${lo}_${hi}.xlsx`;
+  a.click();
+  URL.revokeObjectURL(url);
+  closeExcelExport();
+}
 
 // ===== RESET =====
 async function resetAll() {
