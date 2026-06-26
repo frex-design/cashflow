@@ -501,7 +501,7 @@
     <button class="btn btn-ghost btn-sm" onclick="openPaildModal()" style="color:#1abc9c;border-color:#1abc9c;" onmouseover="this.style.background='#1abc9c';this.style.color='#fff'" onmouseout="this.style.background='';this.style.color='#1abc9c'">💳 Paild取込</button>
     <button class="btn btn-ghost btn-sm" onclick="openFreeeModal()" style="color:#00a968;border-color:#00a968;" onmouseover="this.style.background='#00a968';this.style.color='#fff'" onmouseout="this.style.background='';this.style.color='#00a968'">📤 freee送信</button>
     <button class="btn btn-danger btn-sm" onclick="resetAll()">リセット</button>
-    <span id="verLabel" style="font-size:10px;color:var(--text3);font-family:var(--mono);letter-spacing:0.03em;white-space:nowrap;">Ver:20260626_115107partner</span>
+    <span id="verLabel" style="font-size:10px;color:var(--text3);font-family:var(--mono);letter-spacing:0.03em;white-space:nowrap;">Ver:20260626_115704partner</span>
   </div>
 </div>
 
@@ -1296,13 +1296,33 @@
     <div style="font-size:12px; color:var(--text3); margin-bottom:16px; line-height:1.6;">
       出金・入金を口座ごとの列に展開した一覧をExcel（.xlsx）で出力します。<br>列：日付・科目・取引先＋出金11口座＋入金11口座
     </div>
-    <!-- 期間指定 -->
+    <!-- 期間指定（カスタムカレンダー） -->
     <div style="margin-bottom:16px;">
       <div style="font-size:12px; font-weight:600; color:var(--text2); margin-bottom:8px;">出力期間（指定した日付の範囲）</div>
       <div style="display:flex; align-items:center; gap:8px;">
-        <input type="date" id="excelExportFrom" onchange="updateExcelExportCount()" style="flex:1;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--sans);">
-        <span style="color:var(--text3);">〜</span>
-        <input type="date" id="excelExportTo" onchange="updateExcelExportCount()" style="flex:1;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--sans);">
+        <!-- 開始日 -->
+        <div style="flex:1; position:relative;">
+          <div style="display:flex; align-items:center; gap:0; border:1px solid var(--border); border-radius:5px; overflow:hidden; background:var(--bg2);">
+            <button class="filter-nav-btn" onclick="event.stopPropagation(); shiftExcelCalDate('excelFrom',-1)">&#8249;</button>
+            <div id="excelFromDisplay" onclick="event.stopPropagation(); toggleCustomCal('excelFrom')"
+              style="flex:1; text-align:center; padding:7px 4px; font-size:13px; color:var(--text); cursor:pointer; user-select:none; white-space:nowrap;"></div>
+            <button class="filter-nav-btn" onclick="event.stopPropagation(); shiftExcelCalDate('excelFrom',1)">&#8250;</button>
+          </div>
+          <input type="hidden" id="excelFrom">
+          <div id="customCal_excelFrom" class="custom-cal" style="display:none; position:absolute; top:calc(100% + 4px); left:0; z-index:600;"></div>
+        </div>
+        <span style="color:var(--text3); flex-shrink:0;">〜</span>
+        <!-- 終了日 -->
+        <div style="flex:1; position:relative;">
+          <div style="display:flex; align-items:center; gap:0; border:1px solid var(--border); border-radius:5px; overflow:hidden; background:var(--bg2);">
+            <button class="filter-nav-btn" onclick="event.stopPropagation(); shiftExcelCalDate('excelTo',-1)">&#8249;</button>
+            <div id="excelToDisplay" onclick="event.stopPropagation(); toggleCustomCal('excelTo')"
+              style="flex:1; text-align:center; padding:7px 4px; font-size:13px; color:var(--text); cursor:pointer; user-select:none; white-space:nowrap;"></div>
+            <button class="filter-nav-btn" onclick="event.stopPropagation(); shiftExcelCalDate('excelTo',1)">&#8250;</button>
+          </div>
+          <input type="hidden" id="excelTo">
+          <div id="customCal_excelTo" class="custom-cal" style="display:none; position:absolute; top:calc(100% + 4px); right:0; left:auto; z-index:600;"></div>
+        </div>
       </div>
     </div>
     <!-- 件数プレビュー -->
@@ -2722,6 +2742,8 @@ const CAL_KEY_MAP = {
   'freeeTo':   'freeeTo',
   'paildFrom': 'paildFrom',
   'paildTo':   'paildTo',
+  'excelFrom': 'excelFrom',
+  'excelTo':   'excelTo',
 };
 
 function toggleCustomCal(key) {
@@ -2806,6 +2828,9 @@ function selectCustomDate(key, dateStr) {
     updateFreeePreview();
   } else if (key === 'paildFrom' || key === 'paildTo') {
     updatePaildCalDisplay(key);
+  } else if (key === 'excelFrom' || key === 'excelTo') {
+    updateExcelCalDisplay(key);
+    updateExcelExportCount();
   } else {
     updateDateDisplay(key);
   }
@@ -2823,6 +2848,8 @@ document.addEventListener('click', function(e) {
                  : key === 'freeeTo'   ? 'freeeToDisplay'
                  : key === 'paildFrom' ? 'paildFromDisplay'
                  : key === 'paildTo'   ? 'paildToDisplay'
+                 : key === 'excelFrom' ? 'excelFromDisplay'
+                 : key === 'excelTo'   ? 'excelToDisplay'
                  : null;
     const disp = dispId ? document.getElementById(dispId) : null;
     if (disp && !cal.contains(e.target) && e.target !== disp) cal.style.display = 'none';
@@ -4459,8 +4486,8 @@ function exportCSV() { openCsvExport(); }
 // ===== EXCEL EXPORT（口座横展開・期間指定）=====
 function openExcelExport() {
   // 初期値：データの最小日〜最大日（無ければ当月）
-  const fromEl = document.getElementById('excelExportFrom');
-  const toEl   = document.getElementById('excelExportTo');
+  const fromEl = document.getElementById('excelFrom');
+  const toEl   = document.getElementById('excelTo');
   if (!fromEl.value || !toEl.value) {
     const dates = entries.map(e => e.date).sort();
     if (dates.length) {
@@ -4472,15 +4499,43 @@ function openExcelExport() {
       toEl.value = t;
     }
   }
+  updateExcelCalDisplay('excelFrom');
+  updateExcelCalDisplay('excelTo');
   updateExcelExportCount();
   document.getElementById('excelExportModal').style.display = 'flex';
 }
 function closeExcelExport() {
+  document.getElementById('customCal_excelFrom').style.display = 'none';
+  document.getElementById('customCal_excelTo').style.display = 'none';
   document.getElementById('excelExportModal').style.display = 'none';
 }
+function updateExcelCalDisplay(key) {
+  const val = document.getElementById(CAL_KEY_MAP[key]).value;
+  const el = document.getElementById(key === 'excelFrom' ? 'excelFromDisplay' : 'excelToDisplay');
+  if (!el) return;
+  if (val) {
+    const [y, m, d] = val.split('-').map(Number);
+    el.textContent = `${y}/${String(m).padStart(2,'0')}/${String(d).padStart(2,'0')}`;
+    el.style.color = 'var(--text)';
+  } else {
+    el.textContent = '日付を選択';
+    el.style.color = 'var(--text3)';
+  }
+}
+function shiftExcelCalDate(key, delta) {
+  const id = CAL_KEY_MAP[key];
+  const val = document.getElementById(id).value;
+  if (!val) return;
+  const d = new Date(val);
+  d.setDate(d.getDate() + delta);
+  const newVal = d.toISOString().slice(0, 10);
+  document.getElementById(id).value = newVal;
+  updateExcelCalDisplay(key);
+  updateExcelExportCount();
+}
 function getExcelExportRange() {
-  const from = document.getElementById('excelExportFrom').value;
-  const to   = document.getElementById('excelExportTo').value;
+  const from = document.getElementById('excelFrom').value;
+  const to   = document.getElementById('excelTo').value;
   return { from, to };
 }
 function getFilteredEntriesForExcel() {
