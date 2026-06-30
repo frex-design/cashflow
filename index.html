@@ -501,7 +501,7 @@
     <button class="btn btn-ghost btn-sm" onclick="openPaildModal()" style="color:#1abc9c;border-color:#1abc9c;" onmouseover="this.style.background='#1abc9c';this.style.color='#fff'" onmouseout="this.style.background='';this.style.color='#1abc9c'">💳 Paild取込</button>
     <button class="btn btn-ghost btn-sm" onclick="openFreeeModal()" style="color:#00a968;border-color:#00a968;" onmouseover="this.style.background='#00a968';this.style.color='#fff'" onmouseout="this.style.background='';this.style.color='#00a968'">📤 freee送信</button>
     <button class="btn btn-danger btn-sm" onclick="resetAll()">リセット</button>
-    <span id="verLabel" style="font-size:10px;color:var(--text3);font-family:var(--mono);letter-spacing:0.03em;white-space:nowrap;">Ver:20260626_154109partner</span>
+    <span id="verLabel" style="font-size:10px;color:var(--text3);font-family:var(--mono);letter-spacing:0.03em;white-space:nowrap;">Ver:20260630_161658partner</span>
   </div>
 </div>
 
@@ -692,7 +692,7 @@
                 <option>修繕費</option><option>雑費</option><option>役員報酬</option>
                 <option>給与手当</option><option>賞与</option><option>厚生年金/健康保険</option>
                 <option>所得税/住民税</option><option>法定福利費</option><option>雑収入</option>
-                <option>受取利息</option><option>支払利息</option><option>借入金返済(長期)</option>
+                <option>受取利息</option><option>受取配当金</option><option>支払利息</option><option>借入金返済(長期)</option>
                 <option>借入金返済(短期)</option><option>未払金</option><option>未払消費税</option><option>未払法人税等</option><option>借入金(長期)</option>
                 <option>借入金(短期)</option><option>役員借入金</option><option>外注加工費</option><option>仮払金</option><option>短期貸付金</option><option>未収入金</option><option>その他</option>
               </select>
@@ -1156,7 +1156,7 @@
           <option>修繕費</option><option>雑費</option><option>役員報酬</option>
           <option>給与手当</option><option>賞与</option><option>厚生年金/健康保険</option>
           <option>所得税/住民税</option><option>法定福利費</option><option>雑収入</option>
-          <option>受取利息</option><option>支払利息</option><option>借入金返済(長期)</option>
+          <option>受取利息</option><option>受取配当金</option><option>支払利息</option><option>借入金返済(長期)</option>
           <option>借入金返済(短期)</option><option>未払金</option><option>未払消費税</option><option>未払法人税等</option><option>借入金(長期)</option>
           <option>借入金(短期)</option><option>役員借入金</option><option>外注加工費</option><option>仮払金</option><option>短期貸付金</option><option>未収入金</option><option>その他</option>
         </select>
@@ -2543,7 +2543,7 @@ function initDragDrop() {
 // ===== INLINE EDIT ROW =====
 function buildEditRow(e) {
   const acctOpts = ACCOUNTS.map(a => `<option value="${a.id}" ${a.id===e.account?'selected':''}>${a.name}</option>`).join('');
-  const catOpts = ['','売上高','現金','資金移動','旅費交通費(手)','旅費交通費','福利厚生費','通信費','消耗品費','水道光熱費','新聞図書費','手数料','車両費','地代家賃','租税公課','受取家賃','リース資産','研修費','保険料','支払報酬料','広告宣伝費','接待交際費','会議費','諸会費','賃借料','備品(10万円以上)','福利厚生費(非)','事務用品費','修繕費','雑費','役員報酬','給与手当','賞与','厚生年金/健康保険','所得税/住民税','法定福利費','雑収入','受取利息','支払利息','借入金返済(長期)','借入金返済(短期)','未払金','未払消費税','未払法人税等','借入金(長期)','借入金(短期)','役員借入金','外注加工費','仮払金','短期貸付金','未収入金','その他'].map(c=>`<option value="${c}" ${c===e.category?'selected':''}>${c||'― 選択 ―'}</option>`).join('');
+  const catOpts = ['','売上高','現金','資金移動','旅費交通費(手)','旅費交通費','福利厚生費','通信費','消耗品費','水道光熱費','新聞図書費','手数料','車両費','地代家賃','租税公課','受取家賃','リース資産','研修費','保険料','支払報酬料','広告宣伝費','接待交際費','会議費','諸会費','賃借料','備品(10万円以上)','福利厚生費(非)','事務用品費','修繕費','雑費','役員報酬','給与手当','賞与','厚生年金/健康保険','所得税/住民税','法定福利費','雑収入','受取利息','受取配当金','支払利息','借入金返済(長期)','借入金返済(短期)','未払金','未払消費税','未払法人税等','借入金(長期)','借入金(短期)','役員借入金','外注加工費','仮払金','短期貸付金','未収入金','その他'].map(c=>`<option value="${c}" ${c===e.category?'selected':''}>${c||'― 選択 ―'}</option>`).join('');
   return `
     <tr class="inline-edit-row row-editing">
       <td><input type="date" id="ei_date" value="${e.date}"></td>
@@ -5059,6 +5059,7 @@ const FREEE_WALLETABLE_MAP = {
 const FREEE_ACCOUNT_ITEM_MAP = {
   '売上高':           { id: 604942732,   tax: 129 },
   '受取利息':          { id: 604942785,   tax: 23  },
+  '受取配当金':        { id: 604942786,   tax: 2   },  // 営業外収益 / tax_code:2(対象外)
   '外注加工費':        { id: 604942754,   tax: 136 },
   '手数料':           { id: 604942769,   tax: 136 },
   '接待交際費':        { id: 604942757,   tax: 136 },
