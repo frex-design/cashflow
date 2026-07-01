@@ -501,7 +501,7 @@
     <button class="btn btn-ghost btn-sm" onclick="openPaildModal()" style="color:#1abc9c;border-color:#1abc9c;" onmouseover="this.style.background='#1abc9c';this.style.color='#fff'" onmouseout="this.style.background='';this.style.color='#1abc9c'">💳 Paild取込</button>
     <button class="btn btn-ghost btn-sm" onclick="openFreeeModal()" style="color:#00a968;border-color:#00a968;" onmouseover="this.style.background='#00a968';this.style.color='#fff'" onmouseout="this.style.background='';this.style.color='#00a968'">📤 freee送信</button>
     <button class="btn btn-danger btn-sm" onclick="resetAll()">リセット</button>
-    <span id="verLabel" style="font-size:10px;color:var(--text3);font-family:var(--mono);letter-spacing:0.03em;white-space:nowrap;">Ver:20260630_161658partner</span>
+    <span id="verLabel" style="font-size:10px;color:var(--text3);font-family:var(--mono);letter-spacing:0.03em;white-space:nowrap;">Ver:20260701_154707partner</span>
   </div>
 </div>
 
@@ -1294,7 +1294,7 @@
       <button onclick="closeExcelExport()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--text3);">✕</button>
     </div>
     <div style="font-size:12px; color:var(--text3); margin-bottom:16px; line-height:1.6;">
-      出金・入金を口座ごとの列に展開した一覧をExcel（.xlsx）で出力します。<br>列：日付・科目・取引先＋口座残高3列（秋田/信金/GMO・累計）＋出金11口座＋入金7口座
+      各口座を［入金／出金／口座残高］の3列セットで横に並べた一覧をExcel（.xlsx）で出力します。<br>確定データのみ・残高は数式で自動計算（累計）。列：日付・科目・取引先＋7口座×3列＋後払い4口座
     </div>
     <!-- 期間指定（カスタムカレンダー） -->
     <div style="margin-bottom:16px;">
@@ -4552,8 +4552,8 @@ function updateExcelExportCount() {
   if (!from || !to) { infoEl.textContent = '期間を指定してください'; return; }
   const lo = from <= to ? from : to;
   const hi = from <= to ? to : from;
-  const cnt = getFilteredEntriesForExcel().length;
-  infoEl.innerHTML = `${lo} 〜 ${hi}　<span style="font-weight:600;color:#217346;">${cnt}</span> 件を出力します`;
+  const cnt = getFilteredEntriesForExcel().filter(e => e.status === 'confirmed').length;
+  infoEl.innerHTML = `${lo} 〜 ${hi}　<span style="font-weight:600;color:#217346;">${cnt}</span> 件（確定のみ）を出力します`;
 }
 async function doExportExcel() {
   if (typeof ExcelJS === 'undefined') { alert('Excelライブラリの読込に失敗しました。ページを再読込してください（⌘R）。'); return; }
@@ -4561,98 +4561,123 @@ async function doExportExcel() {
   if (!from || !to) { alert('期間を指定してください。'); return; }
   const lo = from <= to ? from : to;
   const hi = from <= to ? to : from;
-  const filtered = getFilteredEntriesForExcel().sort((a,b)=>a.date.localeCompare(b.date));
-  if (filtered.length === 0) { alert('出力対象のデータがありません。'); return; }
+  // 確定のみ・期間内・日付＋sort_order順（画面の並びと一致）
+  const filtered = getFilteredEntriesForExcel()
+    .filter(e => e.status === 'confirmed')
+    .sort((a,b) => a.date.localeCompare(b.date) || ((a.sort_order ?? a.id) - (b.sort_order ?? b.id)));
+  if (filtered.length === 0) { alert('出力対象の確定データがありません。'); return; }
 
-  const COMMON = 3;                     // 日付・科目・取引先
-  // 口座残高（累計）対象：秋田銀行・信用金庫・GMO
-  const BAL_IDS = ['akita', 'shinkin', 'gmo'];
-  const BAL_ACCOUNTS = BAL_IDS.map(id => ACCOUNTS.find(a => a.id === id)).filter(Boolean);
-  const BAL = BAL_ACCOUNTS.length;      // 3
-  // 出金：全11口座
-  const OUT_ACCOUNTS = ACCOUNTS;
-  const OUT = OUT_ACCOUNTS.length;      // 11
-  // 入金：カード系（アマゾン・VISA-V・VISA-P・JCB）は入金なしのため除外
-  const NO_IN_IDS = ['amazon', 'card_visa', 'card_visa_p', 'card_jib'];
-  const IN_ACCOUNTS = ACCOUNTS.filter(a => !NO_IN_IDS.includes(a.id));
-  const IN = IN_ACCOUNTS.length;        // 7
+  // 列番号→Excel列文字（1→A, 4→D ...）
+  const colL = (n) => { let s=''; while(n>0){ const m=(n-1)%26; s=String.fromCharCode(65+m)+s; n=Math.floor((n-1)/26);} return s; };
 
-  const balStart = COMMON + 1;          // 4
-  const outStart = COMMON + BAL + 1;    // 7
-  const inStart  = COMMON + BAL + OUT + 1; // 18
-  const totalCols = COMMON + BAL + OUT + IN; // 3+3+11+7 = 24
+  // 残高あり口座（スクショ順）：各口座を［入金／出金／口座残高］の3列セットで展開
+  const BAL_IDS = ['akita','shinkin','gmo','akita_yokote','paild','cash_honsha','cash_yokote'];
+  const BAL_ACCOUNTS = BAL_IDS.map(id => ACCOUNTS.find(a=>a.id===id)).filter(Boolean);
+  // 後払い口座：金額のみ1列（残高列なし）
+  const PAY_IDS = ['amazon','card_visa','card_visa_p','card_jib'];
+  const PAY_ACCOUNTS = PAY_IDS.map(id => ACCOUNTS.find(a=>a.id===id)).filter(Boolean);
+
+  const COMMON = 3;                          // 日付・科目・取引先
+  const balInCol  = (k) => COMMON + k*3 + 1; // 口座kの入金列
+  const balOutCol = (k) => COMMON + k*3 + 2; // 口座kの出金列
+  const balBalCol = (k) => COMMON + k*3 + 3; // 口座kの残高列
+  const payStart  = COMMON + BAL_ACCOUNTS.length*3 + 1; // 後払い先頭列
+  const totalCols = payStart + PAY_ACCOUNTS.length - 1;
 
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet('入出金一覧');
 
   // 列幅
-  ws.getColumn(1).width = 12; // 日付
-  ws.getColumn(2).width = 14; // 科目
-  ws.getColumn(3).width = 20; // 取引先
-  for (let i = balStart; i <= totalCols; i++) ws.getColumn(i).width = 13;
+  ws.getColumn(1).width = 11; // 日付
+  ws.getColumn(2).width = 13; // 科目
+  ws.getColumn(3).width = 18; // 取引先
+  for (let c = COMMON+1; c <= totalCols; c++) ws.getColumn(c).width = 12;
 
   const thin = { style: 'thin', color: { argb: 'FFBFBFBF' } };
   const border = { top: thin, left: thin, bottom: thin, right: thin };
 
-  // --- 1行目：グループ見出し（口座残高 / 出金 / 入金）---
+  // --- 1行目：口座名（残高口座＝3列結合／後払い＝全体結合・ピンク）---
   const r1 = ws.getRow(1);
-  ws.mergeCells(1, 1, 1, COMMON);                       // A1:C1
-  ws.mergeCells(1, balStart, 1, balStart + BAL - 1);    // 口座残高（累計）
-  ws.mergeCells(1, outStart, 1, outStart + OUT - 1);    // 出金
-  ws.mergeCells(1, inStart, 1, inStart + IN - 1);       // 入金
-  const cBal = r1.getCell(balStart);
-  cBal.value = '口座残高（累計）';
-  cBal.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFDCE6F1' } };
-  const cOut = r1.getCell(outStart);
-  cOut.value = '出金';
-  cOut.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8D7DA' } };
-  const cIn = r1.getCell(inStart);
-  cIn.value = '入金';
-  cIn.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD4EDDA' } };
-  [cBal, cOut, cIn].forEach(c => { c.font = { bold: true, size: 12 }; c.alignment = { horizontal: 'center', vertical: 'middle' }; });
-
-  // --- 2行目：列見出し ---
-  const r2 = ws.getRow(2);
-  const headers = ['日付', '科目', '取引先',
-    ...BAL_ACCOUNTS.map(a=>a.name),
-    ...OUT_ACCOUNTS.map(a=>a.name),
-    ...IN_ACCOUNTS.map(a=>a.name)];
-  headers.forEach((h, i) => { r2.getCell(i+1).value = h; });
-  r2.eachCell({ includeEmpty: false }, c => {
-    c.font = { bold: true, size: 11 };
-    c.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
-    c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEFEFEF' } };
+  ws.mergeCells(1, 1, 1, COMMON); // A1:C1
+  BAL_ACCOUNTS.forEach((a,k) => {
+    const c0 = balInCol(k);
+    ws.mergeCells(1, c0, 1, c0+2);
+    const cell = r1.getCell(c0);
+    cell.value = a.name;
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFDCE6F1' } };
+    cell.font = { bold: true, size: 11 };
+    cell.alignment = { horizontal: 'center', vertical: 'middle' };
   });
+  ws.mergeCells(1, payStart, 1, payStart + PAY_ACCOUNTS.length - 1);
+  const cPay = r1.getCell(payStart);
+  cPay.value = '後払い';
+  cPay.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF3D9DE' } }; // ピンク
+  cPay.font = { bold: true, size: 11 };
+  cPay.alignment = { horizontal: 'center', vertical: 'middle' };
+
+  // --- 2行目：列見出し（入金／出金／口座残高 ×口座、後払いは口座名）---
+  const r2 = ws.getRow(2);
+  r2.getCell(1).value = '日付';
+  r2.getCell(2).value = '科目';
+  r2.getCell(3).value = '取引先';
+  BAL_ACCOUNTS.forEach((a,k) => {
+    r2.getCell(balInCol(k)).value  = '入金';
+    r2.getCell(balOutCol(k)).value = '出金';
+    r2.getCell(balBalCol(k)).value = '口座残高';
+  });
+  PAY_ACCOUNTS.forEach((a,i) => { r2.getCell(payStart+i).value = a.name; });
+  for (let c = 1; c <= totalCols; c++) {
+    const cell = r2.getCell(c);
+    cell.font = { bold: true, size: 10 };
+    cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+    cell.fill = (c >= payStart)
+      ? { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFBEEF1' } }
+      : { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEFEFEF' } };
+  }
 
   // 1〜2行目の罫線（全列）
   for (let r = 1; r <= 2; r++) {
     for (let c = 1; c <= totalCols; c++) ws.getRow(r).getCell(c).border = border;
   }
 
+  // --- running balance の起点＝期間開始前日の確定残高（残高調整も反映）---
+  const prevDate = (() => { const d = new Date(lo); d.setDate(d.getDate()-1); return d.toISOString().slice(0,10); })();
+  const openBal = {}, runBal = {};
+  BAL_ACCOUNTS.forEach(a => { openBal[a.id] = Math.round(getBalanceAt(a.id, prevDate)); runBal[a.id] = openBal[a.id]; });
+
   // --- データ行 ---
+  const FIRST = 3;
   filtered.forEach((e, idx) => {
-    const row = ws.getRow(3 + idx);
+    const rowNum = FIRST + idx;
+    const row = ws.getRow(rowNum);
     row.getCell(1).value = e.date;
     row.getCell(2).value = e.category || '';
     row.getCell(3).value = e.partner || '';
-    // 口座残高（累計）：その行の日付時点・確定ベース（システム共通のgetBalanceAtを流用）
-    BAL_ACCOUNTS.forEach((a, i) => {
-      const cell = row.getCell(balStart + i);
-      cell.value = getBalanceAt(a.id, e.date);
+
+    // 残高口座：入金／出金セルに金額＋ running balance 更新
+    const bk = BAL_ACCOUNTS.findIndex(a => a.id === e.account);
+    if (bk >= 0) {
+      if (e.type === 'in') { const c = row.getCell(balInCol(bk));  c.value = e.amount; c.numFmt = '#,##0'; runBal[e.account] += e.amount; }
+      else                 { const c = row.getCell(balOutCol(bk)); c.value = e.amount; c.numFmt = '#,##0'; runBal[e.account] -= e.amount; }
+    }
+    // 後払い口座：金額のみ（出金＝正／入金＝負）
+    const pk = PAY_ACCOUNTS.findIndex(a => a.id === e.account);
+    if (pk >= 0) { const c = row.getCell(payStart + pk); c.value = (e.type === 'out') ? e.amount : -e.amount; c.numFmt = '#,##0'; }
+
+    // 残高列＝方式B（数式 =前残高+入金-出金）／result に確定累計値
+    BAL_ACCOUNTS.forEach((a,k) => {
+      const inRef  = colL(balInCol(k))  + rowNum;
+      const outRef = colL(balOutCol(k)) + rowNum;
+      const base   = (idx === 0) ? String(openBal[a.id]) : (colL(balBalCol(k)) + (rowNum-1));
+      const cell = row.getCell(balBalCol(k));
+      cell.value = { formula: `${base}+${inRef}-${outRef}`, result: runBal[a.id] };
       cell.numFmt = '#,##0';
     });
-    // 出金 / 入金 の交差セルに金額
-    if (e.type === 'in') {
-      const inIdx = IN_ACCOUNTS.findIndex(a => a.id === e.account);
-      if (inIdx >= 0) { const c = row.getCell(inStart + inIdx); c.value = e.amount; c.numFmt = '#,##0'; }
-    } else {
-      const outIdx = OUT_ACCOUNTS.findIndex(a => a.id === e.account);
-      if (outIdx >= 0) { const c = row.getCell(outStart + outIdx); c.value = e.amount; c.numFmt = '#,##0'; }
-    }
+
     for (let c = 1; c <= totalCols; c++) row.getCell(c).border = border;
   });
 
-  // 1行目固定
+  // 見出し2行を固定
   ws.views = [{ state: 'frozen', ySplit: 2 }];
 
   const buf = await wb.xlsx.writeBuffer();
